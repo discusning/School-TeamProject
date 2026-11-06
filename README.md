@@ -26,7 +26,13 @@
 | 폴더 | 내용 |
 | --- | --- |
 | `MeetingMinutes/` | 회의록(`.md` + `.pdf`)과 팀 공용 참고 문서 |
-| (제작 시작 후 추가) | 게임 프로젝트(엔진, 코드, 에셋) |
+| `ProtocolSeoul/` | 게임 프로젝트 — Unity 6.5 (6000.5.9f1), URP 2D |
+
+## 개발 환경
+
+- 엔진: Unity 6.5 (`6000.5.9f1`) — 같은 버전으로 열어 주세요.
+- 렌더 파이프라인: URP(Universal) + 2D Renderer
+- 프로젝트 여는 법: Unity Hub → Add → `ProtocolSeoul` 폴더 선택
 
 ## 회의록 목록
 
