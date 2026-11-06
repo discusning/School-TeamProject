@@ -26,6 +26,8 @@
 | 폴더 | 내용 |
 | --- | --- |
 | `MeetingMinutes/` | 회의록(`.md` + `.pdf`)과 팀 공용 참고 문서 |
+| `Planning/` | 기획서 (메인 기획 초안 등) |
+| `Research/` | 참고 게임 분석·설계 보고서 |
 | `ProtocolSeoul/` | 게임 프로젝트 — Unity 6.5 (6000.5.9f1), URP 2D |
 
 ## 개발 환경
