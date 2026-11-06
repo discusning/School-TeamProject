@@ -1,3 +1,29 @@
 # 서기 개인 참고용 문서 (팀 공용 저장소에는 올리지 않음)
 GitHub_사용규칙.md
 MeetingMinutes/설계도/
+
+# Unity 프로젝트(ProtocolSeoul) 자동 생성 폴더·파일 — 저장소에 올리지 않음
+ProtocolSeoul/[Ll]ibrary/
+ProtocolSeoul/[Tt]emp/
+ProtocolSeoul/[Oo]bj/
+ProtocolSeoul/[Bb]uild/
+ProtocolSeoul/[Bb]uilds/
+ProtocolSeoul/[Ll]ogs/
+ProtocolSeoul/[Uu]ser[Ss]ettings/
+ProtocolSeoul/[Mm]emoryCaptures/
+ProtocolSeoul/.vs/
+ProtocolSeoul/.idea/
+ProtocolSeoul/.vscode/
+*.csproj
+*.sln
+*.slnx
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.apk
+*.aab
