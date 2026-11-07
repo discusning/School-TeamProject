@@ -1,0 +1,12 @@
+{
+    "name": "ProtocolSeoul.Editor",
+    "rootNamespace": "ProtocolSeoul.EditorTools",
+    "references": [
+        "ProtocolSeoul.Core",
+        "ProtocolSeoul.Game"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "autoReferenced": false
+}

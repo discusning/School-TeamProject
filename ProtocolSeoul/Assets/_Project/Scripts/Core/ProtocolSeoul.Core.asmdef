@@ -1,0 +1,6 @@
+{
+    "name": "ProtocolSeoul.Core",
+    "rootNamespace": "ProtocolSeoul",
+    "references": [],
+    "autoReferenced": true
+}

@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d90f7459715931a4bb54a09f0e9cd5a3, type: 3}
+  m_Name: Day2
+  m_EditorClassIdentifier: ProtocolSeoul.Core::ProtocolSeoul.DayConfig
+  Day: 2
+  Date: 2050-03-02
+  VisitorCount: 7
+  ErrorRate: 0.45
+  Rules: 010000000200000003000000040000000600000005000000
+  Briefing: "\uC5B4\uC82F\uBC24 \uC678\uBD80\uC778\uC774 \uC11E\uC5EC \uB4E4\uC5B4\uC654\uB2E4\uB294
+    \uBCF4\uACE0\uAC00 \uC788\uB2E4.\n\uBD80\uC2A4\uC758 \uC5BC\uAD74\uC774 DB \uC0AC\uC9C4\uACFC
+    \uB2E4\uB974\uBA74 \uAC70\uBD80\uD558\uB77C.\n\uC815\uC0C1 \uB3C4\uC7A5\uC740
+    \u300C\uC81C1\uC120\uBCC4\uC18C \uD655\uC778\u300D \uBFD0\uC774\uB2E4."
+  RuleShort: "DB \uB300\uC870 + \uC5BC\uAD74 \uD655\uC778 + \uB3C4\uC7A5 \uD655\uC778"
+  ScriptedVisitors: []

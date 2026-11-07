@@ -1,0 +1,10 @@
+{
+    "name": "ProtocolSeoul.Game",
+    "rootNamespace": "ProtocolSeoul.Game",
+    "references": [
+        "ProtocolSeoul.Core",
+        "UnityEngine.UI",
+        "Unity.InputSystem"
+    ],
+    "autoReferenced": true
+}
