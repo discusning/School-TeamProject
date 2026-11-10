@@ -1,131 +1,146 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><title>통합팀플 프로토타입</title>
 <style>
-@page{size:A4;margin:11mm 12mm}
+@page{size:A4;margin:12mm 13mm}
 *{box-sizing:border-box}
-body{font-family:"Malgun Gothic",sans-serif;font-size:12px;line-height:1.55;color:#1f2328;margin:0;background:#fff}
-.page{height:274mm;display:flex;flex-direction:column;justify-content:space-between;page-break-after:always;overflow:hidden}
+body{font-family:"Malgun Gothic",sans-serif;font-size:12.5px;line-height:1.6;color:#1f2328;margin:0;background:#fff;word-break:keep-all}
+.page{height:272mm;position:relative;page-break-after:always;overflow:hidden}
 .page:last-child{page-break-after:auto}
-h1{font-size:25px;margin:0;letter-spacing:-0.5px}
-h2{font-size:16px;margin:0 0 6px;padding:4px 0 4px 10px;border-left:5px solid #2e5e3a;background:#eef3ef}
-h3{font-size:13px;margin:0 0 4px;color:#2e5e3a}
-p{margin:0 0 4px}
-.sub{color:#5a6068;font-size:12.5px;margin-top:3px}
-.lead{border:1px solid #b9cbbd;background:#f5f9f6;padding:9px 12px;font-size:12.5px}
-table{border-collapse:collapse;width:100%;font-size:11.5px}
-th,td{border:1px solid #c4c9ce;padding:4px 7px;text-align:left;vertical-align:top}
+/* 간격: 구역 사이 18px, 구역 안 8px로 고정 */
+.sec+.sec{margin-top:18px}
+h1{font-size:26px;margin:0;letter-spacing:-0.5px}
+h2{font-size:15.5px;margin:0 0 8px;padding:4px 0 4px 10px;border-left:5px solid #2e5e3a;background:#eef3ef}
+h3{font-size:13px;margin:0 0 6px;color:#2e5e3a}
+p{margin:0}
+.sub{color:#5a6068;font-size:12px;margin-top:4px}
+.lead{border:1px solid #b9cbbd;background:#f5f9f6;padding:10px 14px}
+.lead ul{margin:0;padding-left:18px}
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th,td{border:1px solid #c4c9ce;padding:7px 10px;text-align:left;vertical-align:middle}
 th{background:#e7ece8;font-weight:bold}
-td.k{white-space:nowrap;font-weight:bold;width:21%}
+td.k{font-weight:bold}
+td.c,th.c{text-align:center}
 img{width:100%;display:block;border:1px solid #8a9096}
 figure{margin:0}
-figcaption{font-size:11px;color:#4a5058;margin-top:3px}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.step{display:grid;grid-template-columns:64% 1fr;gap:10px;align-items:center}
-.step ul{margin:0;padding-left:16px}
-.step li{margin-bottom:3px}
-.tag{display:inline-block;background:#2e5e3a;color:#fff;border-radius:3px;padding:0 6px;font-size:11px;margin-right:4px}
-.note{font-size:11px;color:#5a6068}
+figcaption{font-size:11.5px;color:#4a5058;margin-top:4px}
+ul{margin:0;padding-left:18px}
+li+li{margin-top:3px}
+.note{font-size:11.5px;color:#5a6068;margin-bottom:8px}
 .ok{color:#1d7a2a;font-weight:bold}
+.tag{display:inline-block;min-width:20px;text-align:center;background:#2e5e3a;color:#fff;border-radius:3px;font-size:11.5px;margin-right:6px}
+/* 그림 + 설명: 위쪽 맞춤 */
+.step{display:grid;grid-template-columns:62% 1fr;gap:14px;align-items:start}
+.step+.step{margin-top:14px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+.wide{grid-template-columns:63% 1fr}
+.stack figure{width:90%;margin:0 auto}
+.cols{display:grid;grid-template-columns:1fr 1fr;column-gap:24px;row-gap:3px;width:90%;margin:10px auto 0;padding-left:18px}
+.cols li+li{margin-top:0}
+.roomy th,.roomy td{padding:10px 10px}
+.r9 th,.r9 td{padding:9px 10px}
+.step+.sec{margin-top:18px}
+.p5 .stack figure,.p5 .cols{width:100%}
 .pin{position:relative}
 .pin span{position:absolute;width:22px;height:22px;border-radius:50%;background:#e8b400;color:#000;font-weight:bold;font-size:12px;display:flex;align-items:center;justify-content:center;border:2px solid #000;transform:translate(-50%,-50%)}
-.legend td:first-child{width:7%;text-align:center;font-weight:bold}
-.foot{font-size:10px;color:#8a9096;text-align:right}
-.roomy th,.roomy td{padding:7px 9px;font-size:12.5px}
-.roomy+p,.page p.note{margin-bottom:6px}
-.below{width:88%;margin:0 auto}
-.wide{grid-template-columns:70% 1fr}
-.full{width:100%}
-.res{grid-template-columns:52% 1fr}
-.cols{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;margin:6px 0 0;padding-left:16px}
-.cols li{margin-bottom:2px}
+.foot{position:absolute;right:0;bottom:0;font-size:10px;color:#8a9096}
+code{font-family:Consolas,monospace;font-size:11.5px}
 </style></head><body>
 
-<!-- 1. 표지 + 요약 -->
+<!-- 1 -->
 <div class="page">
-  <div>
+  <div class="sec">
     <h1>통합팀플 프로토타입</h1>
-    <div class="sub">프로토콜: 서울 생존 구역 · 검문 파트 · 2026-11-08 · 작성 최동환 (팀장·개발)</div>
+    <div class="sub">프로토콜: 서울 생존 구역 · 검문 파트 · 2026-11-08 · 최동환 (팀장·개발)</div>
   </div>
-  <div class="lead">
-    <b>한 줄 요약:</b> 1차 회의에서 정한 <b>필수 메커니즘 4개</b>가 모두 들어간 검문 프로토타입이 완성됐습니다.
-    3일 동안 방문자를 심사하며, 날마다 확인할 규칙이 하나씩 늘어납니다. Windows에서 바로 실행되고, 규칙 자동 테스트 9개를 통과했습니다.
+  <div class="sec lead">
+    <ul>
+      <li>검문 프로토타입이 완성됐습니다.</li>
+      <li>1차 회의에서 정한 필수 메커니즘 4개가 모두 들어갔습니다.</li>
+    </ul>
   </div>
-  <figure><img src="img/04_day1_result_correct.png"><figcaption>실제 게임 화면 — 통행증의 주민번호가 DB와 달라 "거부"를 고른 장면 (정답)</figcaption></figure>
-  <div>
+  <figure class="sec"><img src="img/04_day1_result_correct.png"></figure>
+  <div class="sec">
     <h2>완성 상태</h2>
     <table>
-      <tr><th style="width:7%">단계</th><th style="width:25%">메커니즘</th><th>프로토타입에서 되는 것</th><th style="width:8%">상태</th></tr>
-      <tr><td>P0</td><td>데이터 · 정답 계산</td><td>주민등록 DB 60명 생성, 방문자 생성(오류 하나 심기), 정답 자동 계산</td><td class="ok">완료</td></tr>
-      <tr><td>P1</td><td>검문 루프</td><td>방문자 등장 → 서류 → 통과·거부 → 정답·오답 → 다음 방문자</td><td class="ok">완료</td></tr>
-      <tr><td>P2</td><td>서류–DB 대조</td><td>검사 모드: 서류 칸과 DB 칸을 골라 일치·불일치 확인</td><td class="ok">완료</td></tr>
-      <tr><td>P3</td><td>외부인 판별</td><td>부스 얼굴과 DB 사진 비교 (눈 위치·목 길이가 다름), 검역 소견서 확인</td><td class="ok">완료</td></tr>
-      <tr><td>P4</td><td>하루 정산 · 규칙 추가</td><td>하루 끝 정산, 1→2→3일차로 규칙이 늘어남</td><td class="ok">완료</td></tr>
+      <colgroup><col style="width:9%"><col style="width:24%"><col><col style="width:10%"></colgroup>
+      <tr><th class="c">단계</th><th>메커니즘</th><th>되는 것</th><th class="c">상태</th></tr>
+      <tr><td class="c">P0</td><td>데이터 · 정답 계산</td><td>주민 60명 DB, 방문자 자동 생성</td><td class="c ok">완료</td></tr>
+      <tr><td class="c">P1</td><td>검문 루프</td><td>방문자 → 서류 → 판정 → 결과</td><td class="c ok">완료</td></tr>
+      <tr><td class="c">P2</td><td>서류–DB 대조</td><td>두 칸을 골라 일치 여부 확인</td><td class="c ok">완료</td></tr>
+      <tr><td class="c">P3</td><td>외부인 판별</td><td>얼굴과 DB 사진 비교, 검역 소견서</td><td class="c ok">완료</td></tr>
+      <tr><td class="c">P4</td><td>하루 정산 · 규칙 추가</td><td>하루 끝 정산, 1~3일차 규칙 증가</td><td class="c ok">완료</td></tr>
     </table>
   </div>
-  <div>
+  <div class="sec">
     <h2>3일 동안 늘어나는 규칙</h2>
     <table>
-      <tr><th style="width:12%">날짜</th><th style="width:10%">방문자</th><th>확인할 것</th></tr>
-      <tr><td>1일차</td><td>6명</td><td>통행증 ↔ 주민등록 DB 대조 (이름 · 주민번호 · 생년월일 · 주소)</td></tr>
-      <tr><td>2일차</td><td>7명</td><td>+ 얼굴이 DB 사진과 다른 외부인 · 위조 도장 (「제1선별쇼」 같은 오타)</td></tr>
-      <tr><td>3일차</td><td>8명</td><td>+ 검역 소견서 필수 (검사일 3일 이내) · DB에 범죄 이력이 있는 사람</td></tr>
+      <colgroup><col style="width:12%"><col style="width:12%"><col></colgroup>
+      <tr><th class="c">날짜</th><th class="c">방문자</th><th>확인할 것</th></tr>
+      <tr><td class="c">1일차</td><td class="c">6명</td><td>통행증과 DB 대조 (이름 · 주민번호 · 생년월일 · 주소)</td></tr>
+      <tr><td class="c">2일차</td><td class="c">7명</td><td>+ 얼굴이 다른 외부인, 위조 도장</td></tr>
+      <tr><td class="c">3일차</td><td class="c">8명</td><td>+ 검역 소견서 (3일 이내), 범죄 이력</td></tr>
     </table>
   </div>
   <div class="foot">1 / 7</div>
 </div>
 
-<!-- 2. 참고 게임 -->
+<!-- 2 -->
 <div class="page">
-  <div>
-    <h2>참고한 게임과 가져온 시스템 ① — Papers, Please</h2>
-    <p class="note">국경 검문소에서 입국 서류를 심사하는 게임. 우리 게임의 뼈대(검문 루프)를 가장 많이 가져왔습니다.</p>
+  <div class="sec">
+    <h2>참고 게임 ① Papers, Please</h2>
+    <p class="note">국경 검문소 서류 심사 게임. 검문 루프의 뼈대를 가져왔습니다.</p>
     <table class="roomy">
-      <tr><th style="width:21%">가져온 시스템</th><th style="width:37%">원래 게임에서는</th><th>우리 프로토타입에서는</th></tr>
-      <tr><td class="k">검문 루프</td><td>입국자 등장 → 서류 → 허가·거부 → 다음</td><td>방문자 → 임시 통행증 → 통과·거부 → 다음 방문자</td></tr>
-      <tr><td class="k">기준 자료와 대조</td><td>서류를 규정집·명단과 비교</td><td>통행증을 <b>주민등록 DB</b>와 칸마다 비교</td></tr>
-      <tr><td class="k">검사 모드</td><td>두 항목을 클릭하면 불일치를 짚어 줌</td><td>Space → 서류 칸 · DB 칸 클릭 → 일치 / 불일치 표시</td></tr>
-      <tr><td class="k">날짜별 규칙 추가</td><td>날마다 서류와 규칙이 늘어남</td><td>1일차 DB → 2일차 외부인·도장 → 3일차 소견서·범죄 이력</td></tr>
-      <tr><td class="k">방문자 만드는 법</td><td>진짜 자료를 복사하고 오류를 하나 심음 (개발자 일지)</td><td>DB에서 주민을 뽑아 서류를 복사하고 오류를 하나 심음</td></tr>
-      <tr><td class="k">위조 서류</td><td>도장·인장이 진짜와 미묘하게 다름</td><td>「제1선별소」 대신 「제1선별쇼」 · 「제I선별소」</td></tr>
-      <tr><td class="k">경고 뒤 벌금</td><td>하루 2번은 경고, 3번째부터 벌금</td><td>하루 실수 2번까지 경고, 3번째부터 배급 차감</td></tr>
-      <tr><td class="k">하루 정산</td><td>하루 끝에 번 돈·지출 화면</td><td>하루 끝에 정답 수 · 배급 · 벌점</td></tr>
+      <colgroup><col style="width:22%"><col style="width:36%"><col></colgroup>
+      <tr><th>가져온 시스템</th><th>원작</th><th>우리 프로토타입</th></tr>
+      <tr><td class="k">검문 루프</td><td>입국자 → 서류 → 허가·거부</td><td>방문자 → 통행증 → 통과·거부</td></tr>
+      <tr><td class="k">기준 자료 대조</td><td>서류를 규정집과 비교</td><td>통행증을 주민등록 DB와 비교</td></tr>
+      <tr><td class="k">검사 모드</td><td>두 항목을 눌러 불일치 확인</td><td>Space → 두 칸 클릭 → 결과 표시</td></tr>
+      <tr><td class="k">날짜별 규칙</td><td>날마다 규칙 추가</td><td>1~3일차 규칙 추가</td></tr>
+      <tr><td class="k">방문자 생성</td><td>진짜 자료 복사 + 오류 1개</td><td>DB 주민 복사 + 오류 1개</td></tr>
+      <tr><td class="k">위조 서류</td><td>도장이 미묘하게 다름</td><td>「제1선별쇼」 같은 오타 도장</td></tr>
+      <tr><td class="k">경고 뒤 벌금</td><td>2번 경고, 3번째부터 벌금</td><td>2번 경고, 3번째부터 배급 차감</td></tr>
+      <tr><td class="k">하루 정산</td><td>번 돈 · 지출 화면</td><td>정답 수 · 배급 · 벌점 화면</td></tr>
     </table>
   </div>
-  <div>
-    <h2>참고한 게임과 가져온 시스템 ② — That's Not My Neighbor</h2>
-    <p class="note">아파트 경비원이 방문자 중 사람으로 변장한 "도플갱어"를 가려내는 게임. 외부인 판별에 가져왔습니다.</p>
+  <div class="sec">
+    <h2>참고 게임 ② That's Not My Neighbor</h2>
+    <p class="note">변장한 도플갱어를 가려내는 게임. 외부인 판별을 가져왔습니다.</p>
     <table class="roomy">
-      <tr><th style="width:21%">가져온 시스템</th><th style="width:37%">원래 게임에서는</th><th>우리 프로토타입에서는</th></tr>
-      <tr><td class="k">서류는 진짜, 얼굴이 다름</td><td>도플갱어의 외형이 미묘하게 다름</td><td>외부인은 서류·사진은 진짜이고 <b>부스 얼굴만</b> 다름 (눈 위치 · 목 길이)</td></tr>
-      <tr><td class="k">믿을 수 있는 자료 하나</td><td>"유일하게 100% 정확한" 주민 파일 폴더</td><td>주민등록 DB의 사진·기록이 기준</td></tr>
-      <tr><td class="k">어색한 말투</td><td>도플갱어가 부자연스럽게 말함</td><td>외부인 대사: "통행증. 여기. 있습니다."</td></tr>
+      <colgroup><col style="width:22%"><col style="width:36%"><col></colgroup>
+      <tr><th>가져온 시스템</th><th>원작</th><th>우리 프로토타입</th></tr>
+      <tr><td class="k">얼굴만 다름</td><td>외형이 미묘하게 다름</td><td>서류는 진짜, 얼굴만 다름</td></tr>
+      <tr><td class="k">믿을 자료 하나</td><td>100% 정확한 주민 파일</td><td>주민등록 DB 사진 · 기록</td></tr>
+      <tr><td class="k">어색한 말투</td><td>부자연스러운 대사</td><td>"통행증. 여기. 있습니다."</td></tr>
     </table>
   </div>
-  <div>
+  <div class="sec">
     <h2>우리 기획서에서 가져온 것</h2>
     <table class="roomy">
-      <tr><td class="k">세계관</td><td>2050년 서울 생존 구역, 멸망 전 서버 일부만 복구된 주민등록 DB, 1차 선별소</td></tr>
-      <tr><td class="k">서류</td><td>임시 통행증 · 방사능/바이러스 검역 소견서 · 물자 기부 영수증 (영수증은 심사 기준이 정해진 뒤 추가)</td></tr>
+      <colgroup><col style="width:22%"><col></colgroup>
+      <tr><td class="k">세계관</td><td>2050년 서울 생존 구역, 1차 선별소</td></tr>
+      <tr><td class="k">DB 설정</td><td>멸망 전 서버가 일부만 복구된 주민등록 DB</td></tr>
+      <tr><td class="k">서류</td><td>임시 통행증, 검역 소견서, 물자 기부 영수증 (영수증은 추후)</td></tr>
     </table>
   </div>
   <div class="foot">2 / 7</div>
 </div>
 
-<!-- 3. UI 참고 + 화면 구성 -->
+<!-- 3 -->
 <div class="page">
-  <div>
-    <h2>화면(UI)에서 참고한 것 — 비슷한 게임 20개 조사</h2>
+  <div class="sec">
+    <h2>화면 구성 참고 (비슷한 게임 20개 조사)</h2>
     <table>
-      <tr><th style="width:27%">참고한 게임</th><th style="width:33%">배운 점</th><th>우리 프로토타입에서는</th></tr>
-      <tr><td>Papers, Please</td><td>부스와 책상으로 화면을 나눔</td><td>위: 방문자 부스 / 아래: 서류 책상 + DB 단말기 + 판정 버튼</td></tr>
-      <tr><td>Papers, Please · That's Not My Neighbor</td><td>서류를 끌어 놓다 보면 책상이 어수선해짐</td><td>끌기 대신 <b>탭</b>으로 서류를 바꿔 봄</td></tr>
-      <tr><td>Headliner: NoviNews</td><td>승인·거부를 색으로 바로 구분</td><td>통과 = 초록, 거부 = 빨강</td></tr>
-      <tr><td>Beholder · Death and Taxes · Contraband Police</td><td>"클릭이 너무 많다"는 불만</td><td>문제없는 방문자는 [통과] → [다음] 2번이면 끝</td></tr>
-      <tr><td>Her Story</td><td>낡은 DB의 제약을 설정으로 설명</td><td>"일부 복구" 단말기. 1~2일차는 범죄 이력이 "권한 없음"</td></tr>
-      <tr><td>Quarantine Zone: The Last Check</td><td>감염 검사 서류·증상 판별</td><td>검역 소견서 (검사일 3일 이내만 유효)</td></tr>
+      <colgroup><col style="width:30%"><col style="width:32%"><col></colgroup>
+      <tr><th>참고 게임</th><th>배운 점</th><th>우리 프로토타입</th></tr>
+      <tr><td>Papers, Please</td><td>부스와 책상으로 화면 분할</td><td>위 부스, 아래 책상</td></tr>
+      <tr><td>That's Not My Neighbor</td><td>서류 끌기는 책상을 어지럽힘</td><td>끌기 대신 탭으로 전환</td></tr>
+      <tr><td>Headliner: NoviNews</td><td>승인·거부를 색으로 구분</td><td>통과 초록, 거부 빨강</td></tr>
+      <tr><td>Beholder · Death and Taxes</td><td>클릭이 많으면 지루함</td><td>문제없으면 2번 클릭</td></tr>
+      <tr><td>Her Story</td><td>낡은 DB를 설정으로 활용</td><td>1~2일차 범죄 이력 잠김</td></tr>
+      <tr><td>Quarantine Zone</td><td>감염 검사 서류</td><td>검역 소견서 (3일 이내)</td></tr>
     </table>
   </div>
-  <div>
+  <div class="sec">
     <h2>화면 구성</h2>
     <div class="pin">
       <img src="img/02_day1_visitor.png">
@@ -138,26 +153,30 @@ figcaption{font-size:11px;color:#4a5058;margin-top:3px}
       <span style="left:83%;top:53%">7</span>
     </div>
   </div>
-  <table class="legend">
-    <tr><td>1</td><td><b>위쪽 바</b> — 며칠째인지 · 몇 번째 방문자인지 · 오늘의 규칙</td><td>5</td><td><b>서류 책상</b> — 탭으로 임시 통행증 / 검역 소견서 전환</td></tr>
-    <tr><td>2</td><td><b>방문자 얼굴</b> — 외부인 판별용 (클릭해서 DB 사진과 비교)</td><td>6</td><td><b>주민등록 DB 단말기</b> — 통행증 이름으로 자동 검색된 기록</td></tr>
-    <tr><td>3</td><td><b>말풍선</b> — 방문자 대사 · 아래에 검사 결과 줄</td><td>7</td><td><b>판정 버튼</b> — 통과 · 거부 · 신고(팀 결정 후) · 검사 모드 · 다음 방문자</td></tr>
-    <tr><td>4</td><td><b>결과 칸</b> — 판정 뒤 정답·오답과 이유</td><td></td><td></td></tr>
-  </table>
+  <div class="sec">
+    <table>
+      <colgroup><col style="width:6%"><col style="width:44%"><col style="width:6%"><col></colgroup>
+      <tr><td class="c k">1</td><td><b>위쪽 바</b> · 날짜, 순번, 오늘 규칙</td><td class="c k">5</td><td><b>서류 책상</b> · 탭으로 서류 전환</td></tr>
+      <tr><td class="c k">2</td><td><b>방문자 얼굴</b> · 외부인 판별용</td><td class="c k">6</td><td><b>DB 단말기</b> · 이름으로 자동 검색</td></tr>
+      <tr><td class="c k">3</td><td><b>말풍선</b> · 대사, 검사 결과</td><td class="c k">7</td><td><b>판정 버튼</b> · 통과, 거부, 검사 모드</td></tr>
+      <tr><td class="c k">4</td><td><b>결과 칸</b> · 정답·오답과 이유</td><td></td><td></td></tr>
+    </table>
+  </div>
   <div class="foot">3 / 7</div>
 </div>
 
-<!-- 4. 플레이 방법 1 -->
+<!-- 4 -->
 <div class="page">
-  <h2>플레이 방법 ① — 하루 시작과 서류 확인</h2>
+  <h2>플레이 방법 ① 하루 시작과 서류 확인</h2>
   <div class="step wide">
     <figure><img src="img/01_day1_intro.png"></figure>
     <div>
       <h3><span class="tag">1</span>하루 시작</h3>
       <ul>
-        <li>날짜와 <b>오늘의 지시</b>가 뜹니다.</li>
-        <li>노란 글씨가 오늘 확인할 규칙입니다. 근무 중에도 위쪽 바에 계속 보입니다.</li>
-        <li>[근무 시작]을 누르면 첫 방문자가 옵니다.</li>
+        <li>날짜와 오늘의 지시가 뜹니다.</li>
+        <li>노란 글씨가 오늘의 규칙입니다.</li>
+        <li>규칙은 위쪽 바에도 보입니다.</li>
+        <li>[근무 시작]을 누르면 시작합니다.</li>
       </ul>
     </div>
   </div>
@@ -166,9 +185,10 @@ figcaption{font-size:11px;color:#4a5058;margin-top:3px}
     <div>
       <h3><span class="tag">2</span>서류와 DB 보기</h3>
       <ul>
-        <li>방문자가 오면 서류가 책상에 놓이고, DB 단말기가 통행증의 <b>이름</b>으로 자동 검색합니다.</li>
-        <li>[임시 통행증] / [검역 소견서] 탭을 눌러 서류를 바꿔 봅니다.</li>
-        <li>DB에 없는 이름이면 단말기에 "검색 결과 없음"이 뜹니다 → 거부.</li>
+        <li>방문자가 서류를 냅니다.</li>
+        <li>DB가 이름으로 자동 검색됩니다.</li>
+        <li>탭을 눌러 서류를 바꿔 봅니다.</li>
+        <li>"검색 결과 없음"이면 거부합니다.</li>
       </ul>
     </div>
   </div>
@@ -177,96 +197,105 @@ figcaption{font-size:11px;color:#4a5058;margin-top:3px}
     <div>
       <h3><span class="tag">3</span>검사 모드 (Space)</h3>
       <ul>
-        <li><b>Space</b> 또는 [검사 모드]를 누르면 켜집니다.</li>
-        <li>서류 칸 하나 → DB 칸 하나를 클릭하면 결과가 말풍선 아래에 뜹니다.</li>
-        <li><b>[일치]</b> 같음 · <b>[불일치]</b> 다름 (두 칸이 빨갛게) · <b>관련 없음</b> 종류가 다른 칸끼리 고름</li>
-        <li>왼쪽은 주민번호 한 자리가 다른 경우입니다.</li>
+        <li>Space 또는 [검사 모드]로 켭니다.</li>
+        <li>서류 칸 → DB 칸을 누릅니다.</li>
+        <li><b>[일치]</b> 두 칸이 같음</li>
+        <li><b>[불일치]</b> 두 칸이 다름 (빨강)</li>
+        <li><b>관련 없음</b> 다른 종류끼리 고름</li>
+        <li>그림은 주민번호 불일치입니다.</li>
       </ul>
     </div>
+  </div>
+  <div class="sec">
+    <h2>버튼 정리</h2>
+    <table>
+      <colgroup><col style="width:22%"><col style="width:28%"><col style="width:22%"><col></colgroup>
+      <tr><td class="k">[근무 시작]</td><td>하루 시작</td><td class="k">[통과] / [거부]</td><td>판정</td></tr>
+      <tr><td class="k">서류 탭</td><td>서류 바꾸기</td><td class="k">[다음 방문자 ▶]</td><td>다음 사람 부르기</td></tr>
+      <tr><td class="k">Space / [검사 모드]</td><td>검사 모드 켜고 끄기</td><td class="k">[다음 날 ▶]</td><td>다음 날로 이동</td></tr>
+    </table>
   </div>
   <div class="foot">4 / 7</div>
 </div>
 
-<!-- 5. 플레이 방법 2 -->
-<div class="page">
-  <h2>플레이 방법 ② — 판정과 하루 정산</h2>
-  <div>
+<!-- 5 -->
+<div class="page p5">
+  <h2>플레이 방법 ② 판정과 하루 정산</h2>
+  <div class="sec">
     <h3><span class="tag">4</span>통과 / 거부 → 결과</h3>
-    <div class="step res"><figure><img src="img/04_day1_result_correct.png"></figure><div><b style="color:#1d7a2a">정답</b> — 결과 칸이 초록으로 바뀜<ul><li>처리한 것 · 정답 · 이유가 뜸</li><li>통과·거부 버튼이 잠기고 <b>[다음 방문자 ▶]</b>가 나타남</li></ul></div></div>
-    <div class="step res" style="margin-top:8px"><figure><img src="img/05_day1_result_wrong.png"></figure><div><b style="color:#b71c1c">오답</b> — 결과 칸이 빨강으로 바뀜<ul><li>문제없는 사람을 거부하면 "문제가 없었습니다"</li><li>문제를 놓치고 통과시키면 "놓친 것: ○○"으로 무엇을 놓쳤는지 알려 줌</li></ul></div></div>
-  </div>
-  <div>
-    <h3><span class="tag">5</span>하루 정산</h3>
-    <figure class="below" style="width:92%"><img src="img/06_day1_settlement.png"></figure>
-    <ul class="cols">
-      <li>그날 방문자 전원의 처리 결과가 한 줄씩 나옵니다.</li>
-      <li>○ 맞음 · × 틀림 (빨간 글씨)과 그 이유.</li>
-      <li>정답 1명당 배급 +5. 실수는 하루 2번까지 경고만, 3번째부터 −5 (임시값).</li>
-      <li>[다음 날 ▶] → 규칙이 하나 늘어난 다음 날. 3일차 뒤에는 [처음부터 다시].</li>
+    <div class="two">
+      <figure><img src="img/04_day1_result_correct.png"><figcaption><b class="ok">정답</b> · 결과 칸이 초록으로 바뀝니다.</figcaption></figure>
+      <figure><img src="img/05_day1_result_wrong.png"><figcaption><b style="color:#b71c1c">오답</b> · 결과 칸이 빨강으로 바뀝니다.</figcaption></figure>
+    </div>
+    <ul style="margin-top:10px">
+      <li>처리 결과, 정답, 이유가 함께 뜹니다.</li>
+      <li>판정 뒤에는 통과·거부 버튼이 잠깁니다.</li>
+      <li>[다음 방문자 ▶]로 넘어갑니다.</li>
+      <li>문제를 놓치면 "놓친 것"을 알려 줍니다.</li>
     </ul>
+  </div>
+  <div class="sec">
+    <h3><span class="tag">5</span>하루 정산</h3>
+    <div class="stack"><figure><img src="img/06_day1_settlement.png"></figure></div>
+    <ul class="cols"><li>방문자별 결과가 한 줄씩 나옵니다.</li><li>○ 맞음, × 틀림입니다.</li><li>정답 1명당 배급 +5입니다.</li><li>실수 2번까지는 경고입니다.</li><li>3번째 실수부터 −5입니다.</li><li>[다음 날 ▶]로 넘어갑니다.</li><li>숫자는 모두 임시값입니다.</li><li>3일차 뒤에는 처음부터 다시입니다.</li></ul>
   </div>
   <div class="foot">5 / 7</div>
 </div>
 
-<!-- 6. 2·3일차 -->
+<!-- 6 -->
 <div class="page">
-  <h2>플레이 방법 ③ — 2·3일차에 늘어나는 것</h2>
-  <div>
+  <h2>플레이 방법 ③ 2·3일차에 늘어나는 것</h2>
+  <div class="sec">
     <h3><span class="tag">6</span>외부인 판별 (2일차부터)</h3>
-    <figure class="below"><img src="img/07_day2_outsider_inspect.png"></figure>
-    <ul class="cols">
-      <li>외부인의 서류와 사진은 <b>진짜</b>라서 서류만 보면 문제가 없습니다.</li>
-      <li>검사 모드에서 <b>부스 얼굴</b> → <b>DB 사진</b>을 클릭하면 [불일치].</li>
-      <li>차이는 눈 위치(위·아래) 또는 목 길이. 위 사진은 목이 깁니다.</li>
-      <li>지금은 "거부"로 처리. 신고 버튼은 팀 결정 뒤에 켭니다.</li>
-    </ul>
+    <div class="stack"><figure><img src="img/07_day2_outsider_inspect.png"></figure></div>
+    <ul class="cols"><li>외부인의 서류는 진짜입니다.</li><li>얼굴만 DB 사진과 다릅니다.</li><li>검사 모드에서 얼굴 → DB 사진을 누릅니다.</li><li>다르면 [불일치]가 뜹니다.</li><li>차이는 눈 위치 또는 목 길이입니다.</li><li>지금은 "거부"로 처리합니다.</li></ul>
   </div>
-  <div>
+  <div class="sec">
     <h3><span class="tag">7</span>검역 소견서 · 범죄 이력 (3일차)</h3>
-    <figure class="below"><img src="img/09_day3_cert_tab.png"></figure>
-    <ul class="cols">
-      <li>[검역 소견서] 탭: 이름 · 검사일 · 검사 결과 · 도장.</li>
-      <li>검사일이 오늘 기준 <b>3일보다 오래됐거나</b> 소견서가 없으면 거부.</li>
-      <li>DB 단말기에 범죄 이력이 보임 (1~2일차는 "권한 없음"). 있으면 거부.</li>
-      <li>도장은 2일차부터 「제1선별소 확인」만 정상.</li>
-    </ul>
+    <div class="stack"><figure><img src="img/09_day3_cert_tab.png"></figure></div>
+    <ul class="cols"><li>[검역 소견서] 탭을 눌러 봅니다.</li><li>검사일이 3일 넘게 지났으면 거부합니다.</li><li>소견서가 없어도 거부합니다.</li><li>DB에 범죄 이력이 보입니다.</li><li>이력이 있으면 거부합니다.</li><li>도장은 「제1선별소 확인」만 정상입니다.</li></ul>
   </div>
   <div class="foot">6 / 7</div>
 </div>
 
-<!-- 7. 실행·다음 단계 -->
+<!-- 7 -->
 <div class="page">
-  <div>
+  <div class="sec">
     <h2>직접 해 보기</h2>
-    <table class="roomy">
-      <tr><td class="k">프로젝트 열기</td><td>GitHub <b>School-TeamProject</b> 받기 → Unity Hub → Add → <code>ProtocolSeoul</code> 폴더 (Unity 6.5, 6000.5.9f1)</td></tr>
-      <tr><td class="k">실행</td><td><code>Assets/_Project/Scenes/Checkpoint.unity</code> 열고 ▶ Play (장면이 없으면 메뉴 <b>Protocol Seoul &gt; Setup Project</b>)</td></tr>
-      <tr><td class="k">화면 크기</td><td>어떤 창 크기에서도 16:9 화면이 통째로 맞춰지고, 남는 곳은 검은 띠로 채워집니다.</td></tr>
-      <tr><td class="k">방문자</td><td>켤 때마다 새로 섞여 나옵니다.</td></tr>
+    <table class="roomy r9">
+      <colgroup><col style="width:22%"><col></colgroup>
+      <tr><td class="k">1. 받기</td><td>GitHub <b>School-TeamProject</b> 받기</td></tr>
+      <tr><td class="k">2. 열기</td><td>Unity Hub → Add → <code>ProtocolSeoul</code> 폴더 (Unity 6000.5.9f1)</td></tr>
+      <tr><td class="k">3. 실행</td><td><code>Scenes/Checkpoint.unity</code> 열고 ▶ Play</td></tr>
+      <tr><td class="k">장면이 없으면</td><td>메뉴 <b>Protocol Seoul &gt; Setup Project</b></td></tr>
+      <tr><td class="k">화면 크기</td><td>어떤 창에서도 16:9로 맞춰집니다.</td></tr>
     </table>
   </div>
-  <div>
+  <div class="sec">
     <h2>기획이 직접 바꿀 수 있는 곳</h2>
-    <p><code>Assets/_Project/Resources/Days/Day1 · Day2 · Day3</code> 파일을 Unity에서 클릭 → Inspector에서 바로 수정 (코드 수정 없음)</p>
-    <table class="roomy">
-      <tr><th style="width:24%">항목</th><th>내용</th></tr>
-      <tr><td>Visitor Count</td><td>하루 방문자 수</td></tr>
-      <tr><td>Error Rate</td><td>방문자 1명에게 오류가 있을 확률 (0.4 = 40%)</td></tr>
-      <tr><td>Rules</td><td>그날 확인할 규칙 목록 (넣고 빼면 그날 나오는 오류도 바뀜)</td></tr>
-      <tr><td>Briefing / Rule Short</td><td>하루 시작 때 지시문 / 위쪽 바에 보이는 규칙 한 줄</td></tr>
+    <p class="note">위치: <code>Assets/_Project/Resources/Days/Day1~3</code> · Inspector에서 수정합니다.</p>
+    <table class="roomy r9">
+      <colgroup><col style="width:22%"><col></colgroup>
+      <tr><th>항목</th><th>내용</th></tr>
+      <tr><td class="k">Visitor Count</td><td>하루 방문자 수</td></tr>
+      <tr><td class="k">Error Rate</td><td>오류 있는 방문자 비율 (0.4 = 40%)</td></tr>
+      <tr><td class="k">Rules</td><td>그날 확인할 규칙 목록</td></tr>
+      <tr><td class="k">Briefing</td><td>하루 시작 때 지시문</td></tr>
+      <tr><td class="k">Rule Short</td><td>위쪽 바의 규칙 한 줄</td></tr>
     </table>
   </div>
-  <div>
+  <div class="sec">
     <h2>팀이 정해 주면 바로 넣을 것</h2>
-    <table class="roomy">
-      <tr><th style="width:24%">항목</th><th>지금</th><th style="width:34%">정해야 할 것</th></tr>
-      <tr><td>신고 버튼</td><td>비활성 (외부인도 "거부")</td><td>판정 버튼 2개(통과·거부)로 갈지, 3개(+신고)로 갈지</td></tr>
-      <tr><td>물자 기부 영수증</td><td>탭만 있음</td><td>무엇을 확인하는 서류인지</td></tr>
-      <tr><td>배급 · 벌점</td><td>정답 +5, 3번째 실수부터 −5</td><td>실제 숫자와 하루 끝 결과(생계)</td></tr>
-      <tr><td>시간 제한</td><td>없음</td><td>넣을지, 넣으면 하루 몇 분</td></tr>
-      <tr><td>정답 바로 보여 주기</td><td>판정 직후 정답·오답 표시 (테스트용)</td><td>원작처럼 하루 정산에서만 알려 줄지</td></tr>
-      <tr><td>그림 · 글꼴</td><td>도형 그림, Noto Sans KR</td><td>디자인 시안 (같은 자리에 그림만 교체)</td></tr>
-      <tr><td>스토리 인물</td><td>없음 (자리만 있음)</td><td>메인 NPC · 대사 (기획 정리 뒤)</td></tr>
+    <table class="roomy r9">
+      <colgroup><col style="width:22%"><col style="width:33%"><col></colgroup>
+      <tr><th>항목</th><th>지금</th><th>정할 것</th></tr>
+      <tr><td class="k">신고 버튼</td><td>꺼져 있음</td><td>버튼 2개로 갈지, 3개로 갈지</td></tr>
+      <tr><td class="k">기부 영수증</td><td>탭만 있음</td><td>무엇을 확인하는 서류인지</td></tr>
+      <tr><td class="k">배급 · 벌점</td><td>+5 / −5 (임시)</td><td>실제 숫자</td></tr>
+      <tr><td class="k">시간 제한</td><td>없음</td><td>넣을지, 하루 몇 분인지</td></tr>
+      <tr><td class="k">정답 공개</td><td>판정 직후</td><td>정산 때만 보여 줄지</td></tr>
+      <tr><td class="k">그림</td><td>도형 임시 그림</td><td>디자인 시안</td></tr>
+      <tr><td class="k">스토리 인물</td><td>없음</td><td>메인 NPC와 대사</td></tr>
     </table>
   </div>
   <div class="foot">7 / 7</div>
