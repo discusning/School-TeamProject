@@ -55,6 +55,10 @@ namespace ProtocolSeoul.Game
             if (_days.Count == 0) _days = DayConfig.Defaults();
             _db = ResidentDatabase.Generate(seed: 2050);
             _seed = ArgInt("-seed", Environment.TickCount & 0xffff);
+            // 시연용: 항상 모니터 크기 전체 화면으로 시작 (지난번 창 크기 기억을 무시).
+            // 자동 스크린샷(-shots)이나 -window 로 켜면 명령줄 크기를 그대로 쓴다.
+            if (ArgStr("-shots") == null && Array.IndexOf(Environment.GetCommandLineArgs(), "-window") < 0)
+                Screen.SetResolution(Display.main.systemWidth, Display.main.systemHeight, FullScreenMode.FullScreenWindow);
             BuildAudio();
             BuildUi();
         }
@@ -75,6 +79,20 @@ namespace ProtocolSeoul.Game
             var kb = Keyboard.current;
             if (kb == null) return;
             if (kb.spaceKey.wasPressedThisFrame && _overlay == null) ToggleInspect();
+            if (kb.f11Key.wasPressedThisFrame) ToggleFullScreen();
+        }
+
+        // F11: 전체 화면 ↔ 창 (창은 모니터의 80%, 16:9, 크기 조절 가능)
+        static void ToggleFullScreen()
+        {
+            int w = Display.main.systemWidth, h = Display.main.systemHeight;
+            if (Screen.fullScreenMode == FullScreenMode.Windowed)
+            {
+                Screen.SetResolution(w, h, FullScreenMode.FullScreenWindow);
+                return;
+            }
+            int ww = Mathf.RoundToInt(Mathf.Min(w * 0.8f, h * 0.8f * 16f / 9f));
+            Screen.SetResolution(ww, Mathf.RoundToInt(ww * 9f / 16f), FullScreenMode.Windowed);
         }
 
         // 화면 비율이 달라도 16:9 판(1920×1080 기준)을 통째로 키우고 줄임 → 남는 곳은 검은 띠.
