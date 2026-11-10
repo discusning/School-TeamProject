@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>프로토콜 QA 안내서</title>
+<script>
+  // 안내서: 보고서를 어떻게 채우는지만 설명한다.
+  var V = new URLSearchParams(location.search).get("v") || "example";
+  document.write('<script src="versions/' + V + '.js"><\/script>');
+</script>
+<link rel="stylesheet" href="qa_style.css">
+<style>
+body{font-size:12px;line-height:1.55}
+.sec+.sec{margin-top:15px}
+th,td{padding:5px 9px}
+.goal{border:1px solid #b9cbbd;background:#f5f9f6;padding:8px 14px}
+.goal ul{margin:0;padding-left:18px}
+.ex td{font-size:11px;padding:5px 6px;color:#3a4048;background:#fafbfa}
+.ex th{font-size:11px;padding:5px 6px}
+</style></head><body>
+
+<div class="page">
+  <div class="sec">
+    <h1>프로토콜 게임 QA 안내서 <span id="ver"></span></h1>
+  </div>
+
+  <div class="sec">
+    <h2>이번 테스트 목적</h2>
+    <div class="goal"><ul id="goals"></ul></div>
+  </div>
+
+  <div class="sec">
+    <h2>쓰는 순서</h2>
+    <table>
+      <colgroup><col style="width:7%"><col></colgroup>
+      <tr><td class="c k">1</td><td>게임을 켜고, 보고서 1쪽 "해 볼 것"을 위에서부터 해 봅니다.</td></tr>
+      <tr><td class="c k">2</td><td>잘 되면 ○, 이상하면 × 를 적습니다.</td></tr>
+      <tr><td class="c k">3</td><td>× 가 나오면 바로 화면을 찍습니다. (Win + Shift + S)</td></tr>
+      <tr><td class="c k">4</td><td>보고서 2쪽 "이상했던 것"에 한 줄로 적습니다.</td></tr>
+      <tr><td class="c k">5</td><td>다 끝나면 "결과 요약"과 "해 보고 느낀 것"을 채웁니다.</td></tr>
+    </table>
+  </div>
+
+  <div class="sec">
+    <h2>"이상했던 것" 칸마다 적는 것</h2>
+    <table>
+      <colgroup><col style="width:20%"><col style="width:40%"><col></colgroup>
+      <tr><th>칸</th><th>적는 것</th><th>예</th></tr>
+      <tr><td class="k">정도</td><td>심각 · 보통 · 가벼움 중 하나</td><td id="ex0"></td></tr>
+      <tr><td class="k">언제</td><td>며칠째, 몇 번째 사람인지</td><td id="ex1"></td></tr>
+      <tr><td class="k">내가 한 것</td><td>바로 전에 누른 것</td><td id="ex2"></td></tr>
+      <tr><td class="k">생긴 일</td><td>화면에서 본 것</td><td id="ex3"></td></tr>
+      <tr><td class="k">원래 나와야 할 것</td><td>내가 기대한 것</td><td id="ex4"></td></tr>
+      <tr><td class="k">또 되나 · 사진</td><td>한 번 더 해도 생기면 ○ · 찍었으면 ○</td><td>○ · ○</td></tr>
+      <tr><td class="k">이상했던 것 번호</td><td>1쪽 × 옆에, 2쪽에 적은 번호</td><td>1</td></tr>
+    </table>
+  </div>
+
+  <div class="sec">
+    <h2>정도 고르는 법</h2>
+    <table>
+      <colgroup><col style="width:14%"><col style="width:40%"><col></colgroup>
+      <tr><th class="c">정도</th><th>언제</th><th>예</th></tr>
+      <tr><td class="c r1">심각</td><td>더 이상 진행할 수 없다.</td><td>버튼이 안 눌린다. 게임이 꺼진다.</td></tr>
+      <tr><td class="c r2">보통</td><td>진행은 되지만 결과가 틀리다.</td><td>맞게 골랐는데 오답이 뜬다.</td></tr>
+      <tr><td class="c r3">가벼움</td><td>틀린 건 없지만 보기 불편하다.</td><td>오타. 글자 색이 잘 안 보인다.</td></tr>
+    </table>
+    <p style="margin:6px 0 0;font-size:11.5px;color:#5a6068">헷갈리면 "보통"으로 적습니다.</p>
+  </div>
+
+  <div class="sec">
+    <h2>파일 이름과 내는 곳</h2>
+    <table>
+      <colgroup><col style="width:20%"><col></colgroup>
+      <tr><td class="k">보고서</td><td id="nameReport"></td></tr>
+      <tr><td class="k">사진</td><td id="nameShot"></td></tr>
+      <tr><td class="k">내는 곳</td><td id="where"></td></tr>
+    </table>
+  </div>
+</div>
+
+<script>
+(function () {
+  var q = window.QA, $ = function (id) { return document.getElementById(id); };
+  if (!q) { document.body.innerHTML = "<h1>versions/" + V + ".js 가 없습니다.</h1>"; return; }
+  $("ver").textContent = "· " + q.version;
+  q.bugExample.forEach(function (t, i) { $("ex" + i).textContent = t; });
+  $("goals").innerHTML = q.goals.map(function (g) { return "<li>" + g + "</li>"; }).join("");
+  $("nameReport").innerHTML = "<b>QA_" + q.version + "_이름.pdf</b> &nbsp; 예: QA_" + q.version + "_윤신재.pdf";
+  $("nameShot").innerHTML = "<b>QA_" + q.version + "_이름_번호.png</b> &nbsp; 번호는 \"이상했던 것\" 번호와 같게";
+  $("where").textContent = "팀장에게 보고서와 사진을 함께 보냅니다.";
+})();
+</script>
+</body></html>

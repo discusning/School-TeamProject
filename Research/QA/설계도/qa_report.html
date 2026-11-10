@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>프로토콜 QA 보고서</title>
+<script>
+  // 보고서: 적는 칸만 있다. 설명은 안내서(qa_guide.html)에.
+  var V = new URLSearchParams(location.search).get("v") || "example";
+  document.write('<script src="versions/' + V + '.js"><\/script>');
+</script>
+<link rel="stylesheet" href="qa_style.css">
+<style>
+.sum td{height:44px}
+.bug th,.bug td{font-size:11.5px;padding:6px 7px}
+.bug .blank td{height:58px}
+.box td{height:80px;vertical-align:top}
+</style></head><body>
+
+<!-- 1쪽 -->
+<div class="page">
+  <div class="sec"><h1>프로토콜 게임 QA 보고서 <span id="ver"></span></h1></div>
+
+  <div class="sec">
+    <h2>테스트 정보</h2>
+    <table>
+      <colgroup><col style="width:18%"><col style="width:32%"><col style="width:18%"><col></colgroup>
+      <tr><td class="k">테스트한 사람</td><td></td><td class="k">날짜</td><td></td></tr>
+      <tr><td class="k">게임 버전</td><td id="ver2"></td><td class="k">해 본 시간</td><td class="c">분</td></tr>
+    </table>
+  </div>
+
+  <div class="sec">
+    <h2>결과 요약</h2>
+    <table class="sum">
+      <colgroup><col style="width:32%"><col style="width:18%"><col style="width:32%"><col></colgroup>
+      <tr><td class="k">해 볼 것 중 ○ 개수</td><td class="c" id="total"></td><td class="k">이상했던 것 개수</td><td class="c">개</td></tr>
+      <tr><td class="k">그중 "심각" 개수</td><td class="c">개</td><td class="k">게임이 멈춘 적 있음</td><td class="c">있음 / 없음</td></tr>
+    </table>
+  </div>
+
+  <div class="sec">
+    <h2>해 볼 것</h2>
+    <table>
+      <colgroup><col style="width:13%"><col style="width:7%"><col><col style="width:11%"><col style="width:15%"></colgroup>
+      <thead><tr><th class="c">부분</th><th class="c">번호</th><th>해 볼 것</th><th class="c">○ / ×</th><th class="c">이상했던 것 번호</th></tr></thead>
+      <tbody id="checks"></tbody>
+    </table>
+  </div>
+  <div class="foot">1 / 2</div>
+</div>
+
+<!-- 2쪽 -->
+<div class="page">
+  <div class="sec">
+    <h2>이상했던 것</h2>
+    <table class="bug">
+      <colgroup><col style="width:6%"><col style="width:10%"><col style="width:14%"><col style="width:20%"><col style="width:20%"><col style="width:16%"><col style="width:7%"><col style="width:7%"></colgroup>
+      <thead><tr><th class="c">번호</th><th class="c">정도</th><th>언제</th><th>내가 한 것</th><th>생긴 일</th><th>원래 나와야 할 것</th><th class="c">또<br>되나</th><th class="c">사진</th></tr></thead>
+      <tbody id="bugs"></tbody>
+    </table>
+  </div>
+
+  <div class="sec">
+    <h2>해 보고 느낀 것</h2>
+    <table class="box">
+      <colgroup><col style="width:30%"><col></colgroup>
+      <tr><td class="k">헷갈렸던 버튼이나 화면</td><td></td></tr>
+      <tr><td class="k">너무 쉽거나 어려웠던 곳</td><td></td></tr>
+      <tr><td class="k">제일 먼저 고쳤으면 하는 것 1개</td><td></td></tr>
+    </table>
+  </div>
+  <div class="foot">2 / 2</div>
+</div>
+
+<script>
+(function () {
+  var q = window.QA, $ = function (id) { return document.getElementById(id); };
+  if (!q) { document.body.innerHTML = "<h1>versions/" + V + ".js 가 없습니다.</h1>"; return; }
+  $("ver").textContent = "· " + q.version;
+  $("ver2").textContent = q.version;
+
+  var n = 0, rows = "";
+  q.checks.forEach(function (g) {
+    g.items.forEach(function (it, i) {
+      n++;
+      rows += "<tr>" + (i === 0 ? '<td class="area" rowspan="' + g.items.length + '">' + g.area + "</td>" : "") +
+              '<td class="c">' + n + "</td><td>" + it + "</td><td></td><td></td></tr>";
+    });
+  });
+  $("checks").innerHTML = rows;
+  $("total").textContent = "/ " + n;
+  // 항목 수에 맞춰 줄 높이 조절 (10개 기준 46px) → 1쪽 여백 고르게
+  var h = Math.max(34, Math.min(58, Math.round(460 / n)));
+  document.querySelectorAll("#checks td").forEach(function (td) { td.style.height = h + "px"; });
+
+  var b = "";
+  for (var i = 1; i <= (q.bugRows || 9); i++) b += '<tr class="blank"><td class="c">' + i + "</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>";
+  $("bugs").innerHTML = b;
+})();
+</script>
+</body></html>
