@@ -27,3 +27,6 @@ ProtocolSeoul/.vscode/
 *.VC.db
 *.apk
 *.aab
+
+# 루트 빌드 결과물 (공유 폴더로 따로 전달) — 저장소에 올리지 않음
+/Build/
