@@ -12,9 +12,12 @@ using UnityEngine.UI;
 
 namespace ProtocolSeoul.Game
 {
-    // 검문 프로토타입 (보고서 8·9장, 임시 UI A안 "부스+책상").
-    //   위 40%: 방문자 부스 (얼굴 · 말풍선 · 결과)
-    //   아래 60%: 서류 책상(탭) | 주민등록 DB 단말기 | 판정 버튼
+    // 검문 프로토타입. 화면 구역은 기획_추가_261115 "4. 플레이어 인터페이스" 골격 (그림·색은 임시).
+    //   좌측: NPC 영역 (얼굴 · 첫마디 · 심문/서류 요청 자리 · 판정 결과)
+    //   우측 상단: 서류 검토 영역 (임시 통행증 · 검역 소견서 · 미제출 표시)
+    //   우측 하단: 단말기 (주민등록 DB · 규칙 및 매뉴얼)
+    //   우측: 판정 버튼 (통과 · 거부 · 신고 · 제거)
+    // 기획에 있으나 로직이 없는 기능은 자리만 두고 "준비 중"으로 표시.
     // 흐름: 하루 시작 → 방문자 → (검사 모드로 서류 칸 ↔ DB 칸 비교) → 통과/거부 → 맞음·틀림 → 다음 → 하루 정산 → 다음 날
     // 판정 기준은 Core/Rules.cs 한 곳. 이 파일은 보여 주고 입력만 받는다.
     public class CheckpointGame : MonoBehaviour
@@ -32,13 +35,16 @@ namespace ProtocolSeoul.Game
         FieldCell _pickA;
         readonly List<FieldCell> _cells = new();
         FieldCell _boothCell;
-        int _tab;
+        int _tab, _termTab;
 
         Text _header, _counter, _rule, _speech, _resultTitle, _resultBody, _inspectLine, _inspectBtnText;
         RectTransform _boothFace, _docContent, _termContent;
         Image _resultBox;
         Button _passBtn, _denyBtn, _nextBtn;
-        readonly List<Button> _tabs = new();
+        readonly List<Button> _tabs = new(), _termTabs = new();
+        readonly List<Text> _tabTexts = new();
+        static readonly string[] DocTabNames = { "임시 통행증", "검역 소견서" };
+        static readonly Color Soon = new(0.6f, 0.6f, 0.6f);
         RectTransform _overlay, _canvas;
 
         AudioSource _audio;
@@ -138,12 +144,13 @@ namespace ProtocolSeoul.Game
             _speech.text = V.Line;
             FaceView.Draw(_boothFace, V.Face, Ui.Booth * 1.2f);
             _tab = 0;
+            _termTab = 0;
             RebuildDoc();
             RebuildTerminal();
             _resultBox.color = Ui.Booth * 1.25f;
             _resultTitle.text = "판정 대기";
             _resultTitle.color = Ui.Light;
-            _resultBody.text = "서류와 DB를 확인하고\n통과 또는 거부를 고르세요.";
+            _resultBody.text = "서류와 DB를 확인하고\n최종 처분을 고르세요.";
             _passBtn.interactable = _denyBtn.interactable = true;
             _nextBtn.gameObject.SetActive(false);
             Play(_tick);
@@ -284,118 +291,172 @@ namespace ProtocolSeoul.Game
             _counter = Ui.Label(bar, "Count", 0.25f, 0, 0.45f, 1, "", 26, Ui.Light, TextAnchor.MiddleCenter);
             _rule = Ui.Label(bar, "Rule", 0.45f, 0, 0.99f, 1, "", 24, Ui.Pick, TextAnchor.MiddleRight);
 
-            // ① 검문 부스 (위 40%)
-            var booth = Ui.Box(root, "Booth", 0, 0.56f, 1, 0.95f, Ui.Booth).transform;
-            _boothCell = MakeCell(booth, 0.03f, 0.04f, 0.2f, 0.96f, Source.Booth, Field.Photo, null, Ui.Booth * 1.2f, Ui.Light, out _);
+            // ① NPC 영역 (좌측): 얼굴 대조 · 첫마디 · 심문/서류 요청 · 판정 결과
+            var npc = Ui.Box(root, "NpcArea", 0, 0, 0.4f, 0.95f, Ui.Booth).transform;
+            Ui.Label(npc, "Zone", 0.03f, 0.955f, 0.97f, 0.995f, "NPC 영역 — 방문자 얼굴 · 대화", 20, Soon);
+            _boothCell = MakeCell(npc, 0.04f, 0.55f, 0.52f, 0.95f, Source.Booth, Field.Photo, null, Ui.Booth * 1.2f, Ui.Light, out _);
             _boothFace = Ui.Rect(_boothCell.Bg.transform, "Face", 0, 0, 1, 1, 6);
-            Ui.Label(booth, "Who", 0.23f, 0.86f, 0.62f, 0.97f, "방문자", 22, new Color(0.7f, 0.7f, 0.7f));
-            var bubble = Ui.Box(booth, "Bubble", 0.23f, 0.45f, 0.62f, 0.85f, Ui.Light).transform;
-            _speech = Ui.Label(bubble, "Text", 0, 0, 1, 1, "", 32, Ui.Ink, TextAnchor.MiddleLeft, 24);
-            _inspectLine = Ui.Label(booth, "Inspect", 0.23f, 0.08f, 0.62f, 0.4f, "", 26, Ui.Pick, TextAnchor.MiddleLeft);
-            _resultBox = Ui.Box(booth, "Result", 0.65f, 0.08f, 0.98f, 0.92f, Ui.Booth * 1.25f);
-            _resultTitle = Ui.Label(_resultBox.transform, "Title", 0.05f, 0.6f, 0.95f, 0.95f, "", 44, Ui.Light, TextAnchor.MiddleCenter);
-            _resultBody = Ui.Label(_resultBox.transform, "Body", 0.05f, 0.05f, 0.95f, 0.6f, "", 25, Ui.Light, TextAnchor.MiddleCenter);
+            _resultBox = Ui.Box(npc, "Result", 0.55f, 0.55f, 0.97f, 0.95f, Ui.Booth * 1.25f);
+            _resultTitle = Ui.Label(_resultBox.transform, "Title", 0.05f, 0.62f, 0.95f, 0.95f, "", 40, Ui.Light, TextAnchor.MiddleCenter);
+            _resultBody = Ui.Label(_resultBox.transform, "Body", 0.05f, 0.04f, 0.95f, 0.62f, "", 22, Ui.Light, TextAnchor.MiddleCenter, 4);
 
-            // ② 서류 책상 (탭)
-            var desk = Ui.Box(root, "Desk", 0, 0, 0.5f, 0.555f, Ui.Desk).transform;
-            string[] tabNames = { "임시 통행증", "검역 소견서", "영수증 (예정)" };
-            for (int i = 0; i < 3; i++)
+            Ui.Label(npc, "Who", 0.04f, 0.48f, 0.96f, 0.535f, "대화창 — 방문자의 첫마디", 20, new Color(0.7f, 0.7f, 0.7f));
+            var bubble = Ui.Box(npc, "Bubble", 0.04f, 0.33f, 0.96f, 0.48f, Ui.Light).transform;
+            _speech = Ui.Label(bubble, "Text", 0, 0, 1, 1, "", 30, Ui.Ink, TextAnchor.MiddleLeft, 20);
+
+            // 심문 상호작용 자리 (대화 선택지 · 누락 서류 요청) — 로직 없음
+            Ui.Label(npc, "AskZone", 0.04f, 0.27f, 0.96f, 0.32f, "심문 · 누락 서류 요청 (준비 중)", 20, Soon);
+            string[] asks = { "나이 묻기", "서류 제출 요구", "심문 질문" };
+            for (int i = 0; i < asks.Length; i++)
+                Ui.Button(npc, "Ask" + i, 0.04f + i * 0.31f, 0.18f, 0.32f + i * 0.31f, 0.265f, asks[i] + "\n(준비 중)", Ui.Disabled, Soon, 20, null).interactable = false;
+            _inspectLine = Ui.Label(npc, "Inspect", 0.04f, 0.01f, 0.96f, 0.17f, "", 24, Ui.Pick, TextAnchor.MiddleLeft);
+
+            // ② 서류 검토 영역 (우측 상단): 임시 통행증 · 검역 소견서 (탭, 미제출이면 탭에 표시)
+            var desk = Ui.Box(root, "DocArea", 0.405f, 0.455f, 0.8f, 0.95f, Ui.Desk).transform;
+            for (int i = 0; i < DocTabNames.Length; i++)
             {
                 int k = i;
-                var b = Ui.Button(desk, "Tab" + i, 0.02f + i * 0.32f, 0.875f, 0.32f + i * 0.32f, 0.975f, tabNames[i], Ui.Solid(Ui.Paper * 0.8f), Ui.Ink, 24, () => { _tab = k; RebuildDoc(); Play(_tick); });
-                b.interactable = i < 2; // 영수증은 심사 기준이 정해진 뒤 (보고서 10장)
+                var b = Ui.Button(desk, "Tab" + i, 0.02f + i * 0.33f, 0.88f, 0.34f + i * 0.33f, 0.98f, DocTabNames[i], Ui.Solid(Ui.Paper * 0.8f), Ui.Ink, 22, () => { _tab = k; RebuildDoc(); Play(_tick); });
                 _tabs.Add(b);
+                _tabTexts.Add(b.GetComponentInChildren<Text>());
             }
-            _docContent = (RectTransform)Ui.Box(desk, "Paper", 0.03f, 0.03f, 0.97f, 0.86f, Ui.Paper).transform;
+            Ui.Label(desk, "Zone", 0.69f, 0.88f, 0.98f, 0.98f, "서류 검토", 20, Soon, TextAnchor.MiddleRight);
+            _docContent = (RectTransform)Ui.Box(desk, "Paper", 0.02f, 0.02f, 0.98f, 0.87f, Ui.Paper).transform;
 
-            // ③ 주민등록 DB 단말기
-            var term = Ui.Box(root, "Terminal", 0.505f, 0, 0.8f, 0.555f, Ui.Terminal).transform;
-            _termContent = Ui.Rect(term, "Content", 0, 0, 1, 1, 10);
+            // ③ 단말기 / DB 영역 (우측 하단): 주민등록 DB · 규칙 및 매뉴얼 (탭)
+            var term = Ui.Box(root, "Terminal", 0.405f, 0, 0.8f, 0.45f, Ui.Terminal).transform;
+            string[] termNames = { "주민등록 DB", "규칙 및 매뉴얼" };
+            for (int i = 0; i < termNames.Length; i++)
+            {
+                int k = i;
+                _termTabs.Add(Ui.Button(term, "TermTab" + i, 0.02f + i * 0.33f, 0.88f, 0.34f + i * 0.33f, 0.98f, termNames[i], Ui.Terminal * 2.2f, Ui.TermText, 22, () => { _termTab = k; RebuildTerminal(); Play(_tick); }));
+            }
+            Ui.Label(term, "Zone", 0.69f, 0.88f, 0.98f, 0.98f, "단말기", 20, Ui.TermText * 0.6f, TextAnchor.MiddleRight);
+            _termContent = Ui.Rect(term, "Content", 0, 0, 1, 0.87f, 8);
 
-            // ④ 판정
-            var verdict = Ui.Box(root, "Verdict", 0.805f, 0, 1, 0.555f, Ui.Booth).transform;
-            _passBtn = Ui.Button(verdict, "Pass", 0.06f, 0.78f, 0.94f, 0.97f, "통과", Ui.PassGreen, Color.white, 40, () => Decide(Verdict.Pass));
-            _denyBtn = Ui.Button(verdict, "Deny", 0.06f, 0.57f, 0.94f, 0.76f, "거부", Ui.DenyRed, Color.white, 40, () => Decide(Verdict.Deny));
-            Ui.Button(verdict, "Report", 0.06f, 0.44f, 0.94f, 0.55f, "신고 (팀 결정 후)", Ui.Disabled, new Color(0.7f, 0.7f, 0.7f), 22, null).interactable = false;
-            var insp = Ui.Button(verdict, "Inspect", 0.06f, 0.24f, 0.94f, 0.4f, "", new Color(0.55f, 0.45f, 0.1f), Color.white, 24, ToggleInspect);
+            // ④ 판정 버튼 (우측): 최종 처분 4종 + 검사 모드 + 다음
+            var verdict = Ui.Box(root, "Verdict", 0.805f, 0, 1, 0.95f, Ui.Booth).transform;
+            Ui.Label(verdict, "Zone", 0.06f, 0.955f, 0.94f, 0.995f, "최종 처분", 20, Soon);
+            _passBtn = Ui.Button(verdict, "Pass", 0.06f, 0.81f, 0.94f, 0.95f, "통과", Ui.PassGreen, Color.white, 40, () => Decide(Verdict.Pass));
+            _denyBtn = Ui.Button(verdict, "Deny", 0.06f, 0.66f, 0.94f, 0.8f, "거부", Ui.DenyRed, Color.white, 40, () => Decide(Verdict.Deny));
+            Ui.Button(verdict, "Report", 0.06f, 0.54f, 0.94f, 0.65f, "신고\n(준비 중)", Ui.Disabled, Soon, 24, null).interactable = false;
+            Ui.Button(verdict, "Remove", 0.06f, 0.42f, 0.94f, 0.53f, "제거\n(준비 중)", Ui.Disabled, Soon, 24, null).interactable = false;
+            var insp = Ui.Button(verdict, "Inspect", 0.06f, 0.22f, 0.94f, 0.36f, "", new Color(0.55f, 0.45f, 0.1f), Color.white, 24, ToggleInspect);
             _inspectBtnText = insp.GetComponentInChildren<Text>();
-            _nextBtn = Ui.Button(verdict, "Next", 0.06f, 0.03f, 0.94f, 0.2f, "다음 방문자 ▶", new Color(0.25f, 0.35f, 0.55f), Color.white, 28, Next);
+            _nextBtn = Ui.Button(verdict, "Next", 0.06f, 0.03f, 0.94f, 0.18f, "다음 방문자 ▶", new Color(0.25f, 0.35f, 0.55f), Color.white, 28, Next);
             SetInspect(false);
         }
 
+        // 서류가 빠졌는지: 검역 소견서가 필요한 날인데 안 냈을 때
+        bool CertMissing => V.Cert == null && Day.Has(ErrorKind.QuarantineMissing);
+
         void RebuildDoc()
         {
-            for (int i = 0; i < _tabs.Count - 1; i++) _tabs[i].image.color = i == _tab ? Ui.Paper : Ui.Solid(Ui.Paper * 0.7f);
+            for (int i = 0; i < _tabs.Count; i++)
+            {
+                _tabs[i].image.color = i == _tab ? Ui.Paper : Ui.Solid(Ui.Paper * 0.7f);
+                bool missing = i == 1 && CertMissing;
+                _tabTexts[i].text = missing ? DocTabNames[i] + " (미제출)" : DocTabNames[i];
+                _tabTexts[i].color = missing ? Ui.DenyRed : Ui.Ink;
+            }
             _cells.RemoveAll(c => c.Src == Source.TravelPass || c.Src == Source.Quarantine);
             Ui.Clear(_docContent);
             var t = _docContent.transform;
             if (_tab == 0)
             {
                 var p = V.Pass;
-                Ui.Label(t, "Title", 0.03f, 0.88f, 0.97f, 0.99f, "임시 통행증 — 1차 선별소 발급", 26, Ui.Ink);
-                var photo = MakeCell(t, 0.03f, 0.42f, 0.27f, 0.86f, Source.TravelPass, Field.Photo, null, Ui.Solid(Ui.Paper * 0.9f), Ui.Ink, out _);
+                Ui.Label(t, "Title", 0.03f, 0.88f, 0.97f, 0.99f, "임시 통행증 — 1차 선별소 발급", 24, Ui.Ink);
+                var photo = MakeCell(t, 0.03f, 0.4f, 0.24f, 0.86f, Source.TravelPass, Field.Photo, null, Ui.Solid(Ui.Paper * 0.9f), Ui.Ink, out _);
                 FaceView.Draw(Ui.Rect(photo.Bg.transform, "Face", 0, 0, 1, 1, 4), p.Photo, new Color(0.8f, 0.8f, 0.78f));
-                DocRow(t, 0.3f, 0.76f, Source.TravelPass, Field.Name, p.Name);
-                DocRow(t, 0.3f, 0.65f, Source.TravelPass, Field.ResidentId, p.ResidentId);
-                DocRow(t, 0.3f, 0.54f, Source.TravelPass, Field.BirthDate, Fmt.Date(p.BirthDate));
-                DocRow(t, 0.3f, 0.43f, Source.TravelPass, Field.Address, p.Address);
-                DocRow(t, 0.03f, 0.32f, Source.TravelPass, Field.IssueDate, Fmt.Date(p.IssueDate));
-                MakeCell(t, 0.03f, 0.03f, 0.6f, 0.19f, Source.TravelPass, Field.Stamp, p.Stamp, Ui.Solid(Ui.Paper * 0.95f), new Color(0.7f, 0.12f, 0.1f), out var st);
-                st.fontSize = 30;
+                DocRow(t, 0.27f, 0.86f, Source.TravelPass, Field.Name, p.Name);
+                DocRow(t, 0.27f, 0.74f, Source.TravelPass, Field.ResidentId, p.ResidentId);
+                DocRow(t, 0.27f, 0.62f, Source.TravelPass, Field.BirthDate, Fmt.Date(p.BirthDate));
+                DocRow(t, 0.27f, 0.50f, Source.TravelPass, Field.Address, p.Address);
+                DocRow(t, 0.03f, 0.36f, Source.TravelPass, Field.IssueDate, Fmt.Date(p.IssueDate));
+                MakeCell(t, 0.03f, 0.04f, 0.6f, 0.22f, Source.TravelPass, Field.Stamp, p.Stamp, Ui.Solid(Ui.Paper * 0.95f), new Color(0.7f, 0.12f, 0.1f), out var st);
+                st.fontSize = 28;
             }
             else
             {
                 var c = V.Cert;
-                Ui.Label(t, "Title", 0.03f, 0.88f, 0.97f, 0.99f, "방사능/바이러스 검역 소견서", 26, Ui.Ink);
+                Ui.Label(t, "Title", 0.03f, 0.88f, 0.97f, 0.99f, "검역 소견서", 24, Ui.Ink);
+                // 간이 · 정밀 · 심층 검사 칸 자리 (판독 기준 미정 → 준비 중)
+                string[] levels = { "간이: 혈압 · 맥박 · 체온", "정밀: 채혈(색·점도) · 폐활량(폐 잡음)", "심층: 간이 PCR · 흉부 X-ray" };
+                for (int i = 0; i < levels.Length; i++)
+                {
+                    float y1 = 0.86f - i * 0.28f;
+                    var box = Ui.Box(t, "Level" + i, 0.56f, y1 - 0.26f, 0.97f, y1, Ui.Solid(Ui.Paper * 0.88f)).transform;
+                    Ui.Label(box, "Name", 0.04f, 0.45f, 0.96f, 0.98f, levels[i], 18, Ui.Ink, TextAnchor.MiddleLeft);
+                    Ui.Label(box, "Soon", 0.04f, 0.02f, 0.96f, 0.45f, "(준비 중)", 18, Ui.Ink * 2.5f, TextAnchor.MiddleLeft);
+                }
                 if (c == null)
                 {
-                    bool needed = Day.Has(ErrorKind.QuarantineMissing);
-                    Ui.Label(t, "None", 0.05f, 0.3f, 0.95f, 0.7f, needed ? "제출된 검역 소견서 없음" : "오늘은 검역 소견서를 확인하지 않습니다", 30, needed ? Ui.DenyRed : Ui.Ink, TextAnchor.MiddleCenter);
+                    bool needed = CertMissing;
+                    Ui.Label(t, "None", 0.03f, 0.45f, 0.54f, 0.82f, needed ? "미제출\n제출된 검역 소견서 없음" : "오늘은 검역 소견서를\n확인하지 않습니다", 26, needed ? Ui.DenyRed : Ui.Ink, TextAnchor.MiddleCenter);
+                    if (needed)
+                        Ui.Button(t, "Request", 0.08f, 0.2f, 0.5f, 0.36f, "방문자에게 서류 요구\n(준비 중)", Ui.Disabled, Soon, 20, null).interactable = false;
                     return;
                 }
-                DocRow(t, 0.03f, 0.74f, Source.Quarantine, Field.Name, c.Name);
-                DocRow(t, 0.03f, 0.61f, Source.Quarantine, Field.TestDate, Fmt.Date(c.TestDate));
-                DocRow(t, 0.03f, 0.48f, Source.Quarantine, Field.TestResult, c.Result);
-                MakeCell(t, 0.03f, 0.15f, 0.6f, 0.34f, Source.Quarantine, Field.Stamp, c.Stamp, Ui.Solid(Ui.Paper * 0.95f), new Color(0.7f, 0.12f, 0.1f), out var st);
-                st.fontSize = 30;
-                Ui.Label(t, "Hint", 0.03f, 0.02f, 0.97f, 0.12f, $"오늘 {Fmt.Date(Day.Today)} · 검사일 {Rules.QuarantineValidDays}일 이내만 유효", 22, Ui.Ink * 1.6f);
+                DocRowW(t, 0.03f, 0.86f, 0.54f, Source.Quarantine, Field.Name, c.Name);
+                DocRowW(t, 0.03f, 0.73f, 0.54f, Source.Quarantine, Field.TestDate, Fmt.Date(c.TestDate));
+                DocRowW(t, 0.03f, 0.60f, 0.54f, Source.Quarantine, Field.TestResult, c.Result);
+                MakeCell(t, 0.03f, 0.2f, 0.54f, 0.38f, Source.Quarantine, Field.Stamp, c.Stamp, Ui.Solid(Ui.Paper * 0.95f), new Color(0.7f, 0.12f, 0.1f), out var st);
+                st.fontSize = 26;
+                Ui.Label(t, "Hint", 0.03f, 0.01f, 0.54f, 0.17f, $"오늘 {Fmt.Date(Day.Today)}\n검사일 {Rules.QuarantineValidDays}일 이내만 유효", 18, Ui.Ink * 1.6f);
             }
         }
 
-        void DocRow(Transform t, float x0, float yTop, Source src, Field f, string value) =>
-            MakeCell(t, x0, yTop - 0.1f, 0.97f, yTop, src, f, value, Ui.Solid(Ui.Paper * 0.95f), Ui.Ink, out _);
+        void DocRow(Transform t, float x0, float yTop, Source src, Field f, string value) => DocRowW(t, x0, yTop, 0.97f, src, f, value);
+
+        void DocRowW(Transform t, float x0, float yTop, float x1, Source src, Field f, string value) =>
+            MakeCell(t, x0, yTop - 0.11f, x1, yTop, src, f, value, Ui.Solid(Ui.Paper * 0.95f), Ui.Ink, out _);
 
         void RebuildTerminal()
         {
+            for (int i = 0; i < _termTabs.Count; i++) _termTabs[i].image.color = i == _termTab ? Ui.Terminal * 4f : Ui.Terminal * 1.6f;
             _cells.RemoveAll(c => c.Src == Source.Database);
             Ui.Clear(_termContent);
             var t = _termContent.transform;
+            if (_termTab == 1) { BuildManual(t); return; }
             var r = Record;
-            Ui.Label(t, "Title", 0.03f, 0.9f, 0.97f, 0.99f, "주민등록 DB 단말기 (일부 복구)", 24, Ui.TermText);
-            Ui.Label(t, "Search", 0.03f, 0.8f, 0.97f, 0.89f, $"이름 검색 > {V.Pass.Name}_", 24, Ui.TermText * 0.85f);
+            Ui.Label(t, "Search", 0.02f, 0.88f, 0.98f, 0.99f, $"이름 검색 > {V.Pass.Name}_", 22, Ui.TermText * 0.85f);
             if (r == null)
             {
-                Ui.Label(t, "None", 0.05f, 0.35f, 0.95f, 0.7f, "검색 결과 없음\n등록되지 않은 이름입니다.", 30, new Color(1f, 0.5f, 0.45f), TextAnchor.MiddleCenter);
+                Ui.Label(t, "None", 0.05f, 0.35f, 0.95f, 0.75f, "검색 결과 없음\n등록되지 않은 이름입니다.", 28, new Color(1f, 0.5f, 0.45f), TextAnchor.MiddleCenter);
             }
             else
             {
                 var bg = Ui.Terminal * 2.2f;
-                var photo = MakeCell(t, 0.03f, 0.4f, 0.33f, 0.78f, Source.Database, Field.Photo, null, bg, Ui.TermText, out _);
+                var photo = MakeCell(t, 0.02f, 0.36f, 0.25f, 0.86f, Source.Database, Field.Photo, null, bg, Ui.TermText, out _);
                 FaceView.Draw(Ui.Rect(photo.Bg.transform, "Face", 0, 0, 1, 1, 4), r.Face, new Color(0.25f, 0.32f, 0.27f));
-                TermRow(t, 0.36f, 0.78f, Field.Name, r.Name);
-                TermRow(t, 0.36f, 0.67f, Field.ResidentId, r.ResidentId);
-                TermRow(t, 0.36f, 0.56f, Field.BirthDate, Fmt.Date(r.BirthDate));
-                TermRow(t, 0.36f, 0.45f, Field.Address, r.Address);
+                TermRow(t, 0.27f, 0.86f, Field.Name, r.Name);
+                TermRow(t, 0.27f, 0.74f, Field.ResidentId, r.ResidentId);
+                TermRow(t, 0.27f, 0.62f, Field.BirthDate, Fmt.Date(r.BirthDate));
+                TermRow(t, 0.27f, 0.50f, Field.Address, r.Address);
                 bool crimeOn = Day.Has(ErrorKind.CriminalRecord);
-                MakeCell(t, 0.03f, 0.2f, 0.97f, 0.34f, Source.Database, Field.CriminalRecord,
+                MakeCell(t, 0.02f, 0.16f, 0.98f, 0.32f, Source.Database, Field.CriminalRecord,
                     crimeOn ? r.CriminalRecord ?? "없음" : "(권한 없음 — 아직 복구되지 않은 서버)", bg,
                     r.CriminalRecord != null && crimeOn ? new Color(1f, 0.5f, 0.45f) : Ui.TermText, out _);
             }
-            Ui.Label(t, "Foot", 0.03f, 0.02f, 0.97f, 0.12f, "※ 멸망 전 서버 일부만 복구됨 — 사진은 등록 당시 모습", 18, Ui.TermText * 0.6f);
+            Ui.Label(t, "Foot", 0.02f, 0.01f, 0.98f, 0.13f, "※ 멸망 전 서버 일부만 복구됨 — 사진은 등록 당시 모습", 18, Ui.TermText * 0.6f);
+        }
+
+        // 규칙 및 매뉴얼: 오늘의 규칙 · 필수 제출 서류 목록은 지금 규칙에서 채움. 위조 판별 예시·검역 판독 기준은 준비 중.
+        void BuildManual(Transform t)
+        {
+            var docs = "임시 통행증" + (Day.Has(ErrorKind.QuarantineMissing) || Day.Has(ErrorKind.QuarantineExpired) ? " · 검역 소견서" : "");
+            var sb = new StringBuilder();
+            sb.AppendLine("■ 오늘의 규칙: " + Day.RuleShort);
+            sb.AppendLine("■ 필수 제출 서류: " + docs);
+            if (Day.Has(ErrorKind.ForgedStamp)) sb.AppendLine($"■ 정상 도장: 「{Rules.GenuineStamp}」");
+            if (Day.Has(ErrorKind.QuarantineExpired)) sb.AppendLine($"■ 검역 소견서 검사일: 오늘 기준 {Rules.QuarantineValidDays}일 이내");
+            Ui.Label(t, "Rules", 0.03f, 0.42f, 0.97f, 0.98f, sb.ToString(), 22, Ui.TermText, TextAnchor.UpperLeft);
+            Ui.Label(t, "Forge", 0.03f, 0.22f, 0.97f, 0.4f, "■ 위조 서류 판별 예시 (준비 중)", 22, Ui.TermText * 0.6f, TextAnchor.MiddleLeft);
+            Ui.Label(t, "Quar", 0.03f, 0.03f, 0.97f, 0.21f, "■ 검역 소견서 판독 기준 (준비 중)", 22, Ui.TermText * 0.6f, TextAnchor.MiddleLeft);
         }
 
         void TermRow(Transform t, float x0, float yTop, Field f, string value) =>
-            MakeCell(t, x0, yTop - 0.1f, 0.97f, yTop, Source.Database, f, value, Ui.Terminal * 2.2f, Ui.TermText, out _);
+            MakeCell(t, x0, yTop - 0.11f, 0.98f, yTop, Source.Database, f, value, Ui.Terminal * 2.2f, Ui.TermText, out _);
 
         // 클릭할 수 있는 칸 (이름 + 값). 검사 모드에서 고를 수 있다.
         FieldCell MakeCell(Transform parent, float x0, float y0, float x1, float y1, Source src, Field f, string value, Color bg, Color fg, out Text valueText)
@@ -494,6 +555,9 @@ namespace ProtocolSeoul.Game
             yield return Shot("day1_intro");
             StartDay();
             yield return Shot("day1_visitor");
+            _termTab = 1; RebuildTerminal();
+            yield return Shot("day1_manual");
+            _termTab = 0; RebuildTerminal();
             bool shotMismatch = false, shotWrong = false;
             while (_overlay == null)
             {
