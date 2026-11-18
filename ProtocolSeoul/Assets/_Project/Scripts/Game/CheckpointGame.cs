@@ -13,7 +13,7 @@ using UnityEngine.UI;
 namespace ProtocolSeoul.Game
 {
     // 검문 프로토타입. 화면 구역은 기획_추가_261115 "4. 플레이어 인터페이스" 골격 (그림·색은 임시).
-    //   좌측: NPC 영역 (얼굴 · 첫마디 · 심문/서류 요청 자리 · 판정 결과)
+    //   좌측: NPC 영역 (초상 · 판정 결과 띠 · 첫마디 · 대화 로그 [Tab])
     //   우측 상단: 서류 검토 영역 (임시 통행증 · 검역 소견서 · 미제출 표시)
     //   우측 하단: 단말기 (주민등록 DB · 규칙 및 매뉴얼)
     //   우측: 판정 버튼 (통과 · 거부 · 신고 · 제거)
@@ -37,9 +37,14 @@ namespace ProtocolSeoul.Game
         FieldCell _boothCell;
         int _tab, _termTab;
 
-        Text _header, _counter, _rule, _speech, _resultTitle, _resultBody, _inspectLine, _inspectBtnText;
+        Text _header, _counter, _rule, _speech, _inspectLine, _inspectBtnText, _verdictText;
         RectTransform _boothFace, _docContent, _termContent;
-        Image _resultBox;
+        Image _verdictBand;
+
+        // 대화 로그 (3차 회의 261117: 질문 선택창 대신, 왼쪽 화면을 검정 불투명으로 덮고 흰 글씨)
+        RectTransform _logPanel, _logContent;
+        ScrollRect _logScroll;
+        bool LogOpen => _logPanel != null && _logPanel.gameObject.activeSelf;
         Button _passBtn, _denyBtn, _nextBtn;
         readonly List<Button> _tabs = new(), _termTabs = new();
         readonly List<Text> _tabTexts = new();
@@ -85,6 +90,7 @@ namespace ProtocolSeoul.Game
             var kb = Keyboard.current;
             if (kb == null) return;
             if (kb.spaceKey.wasPressedThisFrame && _overlay == null) ToggleInspect();
+            if (kb.tabKey.wasPressedThisFrame && _overlay == null) SetLog(!LogOpen);
             if (kb.f11Key.wasPressedThisFrame) ToggleFullScreen();
         }
 
@@ -133,6 +139,8 @@ namespace ProtocolSeoul.Game
             _vi = 0;
             _header.text = $"{Day.Day}일차 · {Fmt.Date(Day.Today)}";
             _rule.text = "오늘의 규칙: " + Day.RuleShort;
+            if (_dayIndex == 0) ClearLog();
+            AddLog($"── {Day.Day}일차 · {Fmt.Date(Day.Today)} ──", new Color(0.7f, 0.7f, 0.7f));
             ShowVisitor();
         }
 
@@ -147,10 +155,9 @@ namespace ProtocolSeoul.Game
             _termTab = 0;
             RebuildDoc();
             RebuildTerminal();
-            _resultBox.color = Ui.Booth * 1.25f;
-            _resultTitle.text = "판정 대기";
-            _resultTitle.color = Ui.Light;
-            _resultBody.text = "서류와 DB를 확인하고\n최종 처분을 고르세요.";
+            _verdictBand.gameObject.SetActive(false);
+            SetLog(false);
+            AddLog($"[방문자 {_vi + 1}] {V.Pass.Name}\n“{V.Line}”", Color.white);
             _passBtn.interactable = _denyBtn.interactable = true;
             _nextBtn.gameObject.SetActive(false);
             Play(_tick);
@@ -164,13 +171,14 @@ namespace ProtocolSeoul.Game
             bool ok = chosen == V.Correct;
             Play(_stamp);
             Play(ok ? _ding : _buzz, 0.12f);
-            _resultBox.color = ok ? Ui.PassGreen * 0.8f : Ui.DenyRed * 0.8f;
-            _resultTitle.text = ok ? "정답" : "오답";
-            _resultTitle.color = Color.white;
             string why = V.Correct == Verdict.Pass
                 ? (ok ? "문제 없는 방문자" : "이 방문자는 문제가 없었습니다")
                 : (ok ? "이유: " : "놓친 것: ") + Fmt.ErrorText(V.Reason);
-            _resultBody.text = $"처리: {Name(chosen)}  /  정답: {Name(V.Correct)}\n{why}";
+            // 판정 결과: 초상 아래쪽 띠(바로 보임) + 대화 로그(다시 볼 수 있음)
+            _verdictBand.color = ok ? Ui.Solid(Ui.PassGreen * 0.85f) : Ui.Solid(Ui.DenyRed * 0.85f);
+            _verdictText.text = $"{(ok ? "정답" : "오답")} — 처리 {Name(chosen)} / 정답 {Name(V.Correct)}\n{why}";
+            _verdictBand.gameObject.SetActive(true);
+            AddLog($"{(ok ? "○ 정답" : "× 오답")} — 처리 {Name(chosen)} / 정답 {Name(V.Correct)} · {why}", Color.white);
             _passBtn.interactable = _denyBtn.interactable = false;
             _nextBtn.gameObject.SetActive(true);
         }
@@ -291,25 +299,28 @@ namespace ProtocolSeoul.Game
             _counter = Ui.Label(bar, "Count", 0.25f, 0, 0.45f, 1, "", 26, Ui.Light, TextAnchor.MiddleCenter);
             _rule = Ui.Label(bar, "Rule", 0.45f, 0, 0.99f, 1, "", 24, Ui.Pick, TextAnchor.MiddleRight);
 
-            // ① NPC 영역 (좌측): 얼굴 대조 · 첫마디 · 심문/서류 요청 · 판정 결과
+            // ① NPC 영역 (좌측): 초상(판정 결과 띠) · 첫마디 · 대화 로그 버튼
             var npc = Ui.Box(root, "NpcArea", 0, 0, 0.4f, 0.95f, Ui.Booth).transform;
             Ui.Label(npc, "Zone", 0.03f, 0.955f, 0.97f, 0.995f, "NPC 영역 — 방문자 얼굴 · 대화", 20, Soon);
-            _boothCell = MakeCell(npc, 0.04f, 0.55f, 0.52f, 0.95f, Source.Booth, Field.Photo, null, Ui.Booth * 1.2f, Ui.Light, out _);
-            _boothFace = Ui.Rect(_boothCell.Bg.transform, "Face", 0, 0, 1, 1, 6);
-            _resultBox = Ui.Box(npc, "Result", 0.55f, 0.55f, 0.97f, 0.95f, Ui.Booth * 1.25f);
-            _resultTitle = Ui.Label(_resultBox.transform, "Title", 0.05f, 0.62f, 0.95f, 0.95f, "", 40, Ui.Light, TextAnchor.MiddleCenter);
-            _resultBody = Ui.Label(_resultBox.transform, "Body", 0.05f, 0.04f, 0.95f, 0.62f, "", 22, Ui.Light, TextAnchor.MiddleCenter, 4);
+            // 초상: NPC 영역 위쪽 폭 전체. 얼굴은 비율을 지켜 가운데 (서류·DB 사진과 같은 모양으로 비교)
+            _boothCell = MakeCell(npc, 0.04f, 0.55f, 0.96f, 0.95f, Source.Booth, Field.Photo, null, Ui.Booth * 1.2f, Ui.Light, out _);
+            var faceArea = Ui.Rect(_boothCell.Bg.transform, "FaceArea", 0, 0, 1, 1, 6);
+            _boothFace = Ui.Rect(faceArea, "Face", 0, 0, 1, 1);
+            var fit = _boothFace.gameObject.AddComponent<AspectRatioFitter>();
+            fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            fit.aspectRatio = 0.9f;
+            _verdictBand = Ui.Box(npc, "VerdictBand", 0.04f, 0.55f, 0.96f, 0.65f, Ui.PassGreen);
+            _verdictBand.raycastTarget = false;
+            _verdictText = Ui.Label(_verdictBand.transform, "Text", 0.02f, 0, 0.98f, 1, "", 22, Color.white, TextAnchor.MiddleCenter);
+            _verdictBand.gameObject.SetActive(false);
 
             Ui.Label(npc, "Who", 0.04f, 0.48f, 0.96f, 0.535f, "대화창 — 방문자의 첫마디", 20, new Color(0.7f, 0.7f, 0.7f));
             var bubble = Ui.Box(npc, "Bubble", 0.04f, 0.33f, 0.96f, 0.48f, Ui.Light).transform;
             _speech = Ui.Label(bubble, "Text", 0, 0, 1, 1, "", 30, Ui.Ink, TextAnchor.MiddleLeft, 20);
 
-            // 심문 상호작용 자리 (대화 선택지 · 누락 서류 요청) — 로직 없음
-            Ui.Label(npc, "AskZone", 0.04f, 0.27f, 0.96f, 0.32f, "심문 · 누락 서류 요청 (준비 중)", 20, Soon);
-            string[] asks = { "나이 묻기", "서류 제출 요구", "심문 질문" };
-            for (int i = 0; i < asks.Length; i++)
-                Ui.Button(npc, "Ask" + i, 0.04f + i * 0.31f, 0.18f, 0.32f + i * 0.31f, 0.265f, asks[i] + "\n(준비 중)", Ui.Disabled, Soon, 20, null).interactable = false;
+            Ui.Button(npc, "LogOpen", 0.04f, 0.19f, 0.96f, 0.3f, "대화 로그 [Tab]", new Color(0.06f, 0.06f, 0.07f), Color.white, 26, () => { SetLog(true); Play(_tick); });
             _inspectLine = Ui.Label(npc, "Inspect", 0.04f, 0.01f, 0.96f, 0.17f, "", 24, Ui.Pick, TextAnchor.MiddleLeft);
+            BuildLog(npc);
 
             // ② 서류 검토 영역 (우측 상단): 임시 통행증 · 검역 소견서 (탭, 미제출이면 탭에 표시)
             var desk = Ui.Box(root, "DocArea", 0.405f, 0.455f, 0.8f, 0.95f, Ui.Desk).transform;
@@ -476,6 +487,75 @@ namespace ProtocolSeoul.Game
             return cell;
         }
 
+        // ───────────── 대화 로그 ─────────────
+        // 왼쪽 NPC 영역을 검정 불투명으로 덮고 흰 글씨. 방문자 첫마디 · 판정 결과가 위에서 아래로 쌓이고 스크롤된다.
+        // 열기: 버튼 또는 Tab. 닫기: 닫기 버튼 또는 Tab. 새 방문자가 오면 닫힘. 1일차 시작 때 비움.
+
+        void BuildLog(Transform npc)
+        {
+            var panel = Ui.Box(npc, "Log", 0, 0, 1, 1, Color.black);
+            _logPanel = panel.rectTransform;
+            var t = panel.transform;
+            Ui.Label(t, "Title", 0.04f, 0.94f, 0.7f, 0.99f, "대화 로그", 30, Color.white);
+            Ui.Button(t, "Close", 0.72f, 0.94f, 0.96f, 0.99f, "닫기 [Tab]", new Color(0.2f, 0.2f, 0.2f), Color.white, 22, () => { SetLog(false); Play(_tick); });
+
+            var view = Ui.Box(t, "View", 0.04f, 0.02f, 0.93f, 0.93f, new Color(0, 0, 0, 0));
+            view.gameObject.AddComponent<RectMask2D>();
+            _logContent = Ui.Rect(view.transform, "Content", 0, 1, 1, 1);
+            _logContent.pivot = new Vector2(0.5f, 1f);
+            var vlg = _logContent.gameObject.AddComponent<VerticalLayoutGroup>();
+            vlg.childControlWidth = vlg.childControlHeight = true;
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false;
+            vlg.spacing = 14;
+            vlg.padding = new RectOffset(6, 6, 6, 6);
+            _logContent.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            _logScroll = view.gameObject.AddComponent<ScrollRect>();
+            _logScroll.horizontal = false;
+            _logScroll.viewport = view.rectTransform;
+            _logScroll.content = _logContent;
+            _logScroll.movementType = ScrollRect.MovementType.Clamped;
+            _logScroll.scrollSensitivity = 40;
+
+            var track = Ui.Box(t, "Bar", 0.945f, 0.02f, 0.97f, 0.93f, new Color(1, 1, 1, 0.12f));
+            var area = Ui.Rect(track.transform, "Area", 0, 0, 1, 1);
+            var handle = Ui.Box(area, "Handle", 0, 0, 1, 1, new Color(1, 1, 1, 0.6f));
+            var bar = track.gameObject.AddComponent<Scrollbar>();
+            bar.handleRect = handle.rectTransform;
+            bar.targetGraphic = handle;
+            bar.direction = Scrollbar.Direction.BottomToTop;
+            _logScroll.verticalScrollbar = bar;
+            _logScroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+
+            panel.gameObject.SetActive(false);
+        }
+
+        void SetLog(bool on)
+        {
+            if (_logPanel == null) return;
+            _logPanel.gameObject.SetActive(on);
+            if (on) ScrollLogToEnd();
+        }
+
+        void AddLog(string text, Color color)
+        {
+            Ui.Label(_logContent, "Line", 0, 0, 1, 1, text, 24, color, TextAnchor.UpperLeft);
+            if (LogOpen) ScrollLogToEnd();
+        }
+
+        void ClearLog()
+        {
+            for (int i = _logContent.childCount - 1; i >= 0; i--) DestroyImmediate(_logContent.GetChild(i).gameObject);
+        }
+
+        void ScrollLogToEnd()
+        {
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_logContent);
+            _logScroll.verticalNormalizedPosition = 0f;
+        }
+
         // ───────────── 겹쳐 띄우는 창 ─────────────
 
         RectTransform OpenOverlay()
@@ -576,6 +656,9 @@ namespace ProtocolSeoul.Game
                 {
                     Decide(Verdict.Deny);
                     yield return Shot("day1_result_wrong");
+                    SetLog(true);
+                    yield return Shot("day1_log");
+                    SetLog(false);
                     shotWrong = true;
                 }
                 else Decide(V.Correct);
@@ -607,7 +690,21 @@ namespace ProtocolSeoul.Game
             StartDay();
             _tab = 1; RebuildDoc();
             yield return Shot("day3_cert_tab");
-            foreach (var v in _visitors) log.AppendLine($"D3 {v.Pass.Name} 심은 오류 {v.Planted} → 정답 {v.Correct} ({v.Reason})");
+            while (_overlay == null)
+            {
+                log.AppendLine($"D3 {V.Pass.Name} 심은 오류 {V.Planted} → 정답 {V.Correct} ({V.Reason})");
+                Decide(V.Correct);
+                if (_vi == _visitors.Count - 1)
+                {
+                    SetLog(true);
+                    yield return Shot("day3_log_full");
+                    _logScroll.verticalNormalizedPosition = 0.5f;
+                    yield return Shot("day3_log_scrolled");
+                }
+                Next();
+                yield return null;
+            }
+            yield return Shot("day3_settlement");
             File.WriteAllText(Path.Combine(dir, "log.txt"), log.ToString());
             yield return new WaitForSeconds(0.5f);
             Application.Quit();
