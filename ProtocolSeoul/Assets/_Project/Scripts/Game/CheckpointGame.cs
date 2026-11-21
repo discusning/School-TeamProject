@@ -14,7 +14,8 @@ namespace ProtocolSeoul.Game
 {
     // 검문 프로토타입. 화면 구역은 기획_추가_261115 "4. 플레이어 인터페이스" 골격 (그림·색은 임시).
     //   좌측: NPC 영역 (초상 · 판정 결과 띠 · 첫마디 · 대화 로그 [Tab])
-    //   우측 상단: 서류 검토 영역 (임시 통행증 · 검역 소견서 · 미제출 표시)
+    //   우측 상단: 서류 검토 영역 (작은 서류가 위에서 내려옴 → 클릭하면 확대 · 미제출 표시)
+    //             그날 규칙에 없는 서류(예: 검역 소견서)는 칸 자체를 보이지 않음 (3차 회의 261117)
     //   우측 하단: 단말기 (주민등록 DB · 규칙 및 매뉴얼)
     //   우측: 판정 버튼 (통과 · 거부 · 신고 · 제거)
     // 기획에 있으나 로직이 없는 기능은 자리만 두고 "준비 중"으로 표시.
@@ -46,9 +47,15 @@ namespace ProtocolSeoul.Game
         ScrollRect _logScroll;
         bool LogOpen => _logPanel != null && _logPanel.gameObject.activeSelf;
         Button _passBtn, _denyBtn, _nextBtn;
-        readonly List<Button> _tabs = new(), _termTabs = new();
-        readonly List<Text> _tabTexts = new();
-        static readonly string[] DocTabNames = { "임시 통행증", "검역 소견서" };
+        readonly List<Button> _termTabs = new();
+        static readonly string[] DocNames = { "임시 통행증", "검역 소견서" };
+
+        // 서류 연출 (3차 회의 261117): 작은 서류가 위에서 내려오고, 클릭하면 서류 검토 영역 가득 확대
+        RectTransform _desk, _tray, _docView;
+        readonly List<RectTransform> _smallDocs = new();
+        Coroutine _dropCo, _zoomCo;
+        const float DropTime = 0.7f, DropStagger = 0.15f, DropFrom = 620f, ZoomTime = 0.18f;
+        bool DocOpen => _docView != null && _docView.gameObject.activeSelf;
         static readonly Color Soon = new(0.6f, 0.6f, 0.6f);
         RectTransform _overlay, _canvas;
 
@@ -91,6 +98,7 @@ namespace ProtocolSeoul.Game
             if (kb == null) return;
             if (kb.spaceKey.wasPressedThisFrame && _overlay == null) ToggleInspect();
             if (kb.tabKey.wasPressedThisFrame && _overlay == null) SetLog(!LogOpen);
+            if (kb.escapeKey.wasPressedThisFrame && _overlay == null && DocOpen) { CloseDoc(); Play(_tick); }
             if (kb.f11Key.wasPressedThisFrame) ToggleFullScreen();
         }
 
@@ -151,9 +159,9 @@ namespace ProtocolSeoul.Game
             _counter.text = $"방문자 {_vi + 1} / {_visitors.Count}";
             _speech.text = V.Line;
             FaceView.Draw(_boothFace, V.Face, Ui.Booth * 1.2f);
-            _tab = 0;
             _termTab = 0;
-            RebuildDoc();
+            CloseDoc();
+            BuildSmallDocs();
             RebuildTerminal();
             _verdictBand.gameObject.SetActive(false);
             SetLog(false);
@@ -322,17 +330,18 @@ namespace ProtocolSeoul.Game
             _inspectLine = Ui.Label(npc, "Inspect", 0.04f, 0.01f, 0.96f, 0.17f, "", 24, Ui.Pick, TextAnchor.MiddleLeft);
             BuildLog(npc);
 
-            // ② 서류 검토 영역 (우측 상단): 임시 통행증 · 검역 소견서 (탭, 미제출이면 탭에 표시)
-            var desk = Ui.Box(root, "DocArea", 0.405f, 0.455f, 0.8f, 0.95f, Ui.Desk).transform;
-            for (int i = 0; i < DocTabNames.Length; i++)
-            {
-                int k = i;
-                var b = Ui.Button(desk, "Tab" + i, 0.02f + i * 0.33f, 0.88f, 0.34f + i * 0.33f, 0.98f, DocTabNames[i], Ui.Solid(Ui.Paper * 0.8f), Ui.Ink, 22, () => { _tab = k; RebuildDoc(); Play(_tick); });
-                _tabs.Add(b);
-                _tabTexts.Add(b.GetComponentInChildren<Text>());
-            }
-            Ui.Label(desk, "Zone", 0.69f, 0.88f, 0.98f, 0.98f, "서류 검토", 20, Soon, TextAnchor.MiddleRight);
-            _docContent = (RectTransform)Ui.Box(desk, "Paper", 0.02f, 0.02f, 0.98f, 0.87f, Ui.Paper).transform;
+            // ② 서류 검토 영역 (우측 상단): 방문자가 낸 작은 서류가 위에서 내려옴 → 클릭하면 확대 (닫기 · Esc)
+            //    그날 필요한 서류만 칸이 생김. 필요한데 안 냈으면 빈 칸에 "미제출"
+            var deskImg = Ui.Box(root, "DocArea", 0.405f, 0.455f, 0.8f, 0.95f, Ui.Desk);
+            deskImg.gameObject.AddComponent<RectMask2D>(); // 위에서 내려오는 서류가 영역 밖에서는 안 보이게
+            _desk = deskImg.rectTransform;
+            var desk = _desk.transform;
+            Ui.Label(desk, "Zone", 0.03f, 0.9f, 0.97f, 0.99f, "서류 검토 — 서류를 클릭하면 크게 봅니다", 20, Soon);
+            _tray = Ui.Rect(desk, "Tray", 0, 0, 1, 0.9f);
+            _docView = (RectTransform)Ui.Box(desk, "OpenDoc", 0.02f, 0.02f, 0.98f, 0.98f, Ui.Paper).transform;
+            _docContent = Ui.Rect(_docView, "Content", 0, 0, 1, 1);
+            Ui.Button(_docView, "Close", 0.8f, 0.9f, 0.98f, 0.985f, "닫기 [Esc]", new Color(0.3f, 0.27f, 0.22f), Color.white, 20, () => { CloseDoc(); Play(_tick); });
+            _docView.gameObject.SetActive(false);
 
             // ③ 단말기 / DB 영역 (우측 하단): 주민등록 DB · 규칙 및 매뉴얼 (탭)
             var term = Ui.Box(root, "Terminal", 0.405f, 0, 0.8f, 0.45f, Ui.Terminal).transform;
@@ -358,20 +367,129 @@ namespace ProtocolSeoul.Game
             SetInspect(false);
         }
 
+        // 검역 소견서를 보는 날인지 (규칙에 검역 항목이 켜진 날부터 칸이 생김)
+        bool CertDay => Day.Has(ErrorKind.QuarantineMissing) || Day.Has(ErrorKind.QuarantineExpired);
         // 서류가 빠졌는지: 검역 소견서가 필요한 날인데 안 냈을 때
-        bool CertMissing => V.Cert == null && Day.Has(ErrorKind.QuarantineMissing);
+        bool CertMissing => V.Cert == null && CertDay;
+
+        // 작은 서류 칸을 만들고 위에서 아래로 내려보냄. 낸 서류만 내려오고, 미제출 칸은 빈 자리로 바로 보임.
+        void BuildSmallDocs()
+        {
+            if (_dropCo != null) StopCoroutine(_dropCo);
+            Ui.Clear(_tray);
+            _smallDocs.Clear();
+            var drop = new List<RectTransform>();
+            int slots = CertDay ? 2 : 1;
+            for (int i = 0; i < slots; i++)
+            {
+                bool missing = i == 1 && CertMissing;
+                var d = MakeSmallDoc(i, missing);
+                _smallDocs.Add(d);
+                if (!missing) drop.Add(d);
+            }
+            _dropCo = StartCoroutine(DropDocs(drop));
+        }
+
+        RectTransform MakeSmallDoc(int i, bool missing)
+        {
+            float x0 = 0.05f + i * 0.27f;
+            int k = i;
+            var b = Ui.Button(_tray, "SmallDoc" + i, x0, 0.08f, x0 + 0.22f, 0.86f, "",
+                missing ? new Color(0f, 0f, 0f, 0.28f) : Ui.Paper, Ui.Ink, 18, () => OpenDoc(k));
+            var t = b.transform;
+            if (missing)
+            {
+                Ui.Label(t, "Title", 0.06f, 0.78f, 0.94f, 0.97f, DocNames[i], 20, Ui.Light, TextAnchor.MiddleCenter);
+                Ui.Label(t, "Missing", 0.06f, 0.3f, 0.94f, 0.6f, "미제출", 28, new Color(1f, 0.5f, 0.45f), TextAnchor.MiddleCenter);
+                return b.image.rectTransform;
+            }
+            Ui.Label(t, "Title", 0.06f, 0.8f, 0.94f, 0.97f, DocNames[i], 20, Ui.Ink, TextAnchor.MiddleCenter);
+            var line = Ui.Solid(Ui.Paper * 0.75f);
+            if (i == 0) // 통행증: 사진 자리 + 글줄 + 도장
+            {
+                Ui.Box(t, "Photo", 0.1f, 0.5f, 0.42f, 0.76f, line);
+                for (int r = 0; r < 4; r++) Ui.Box(t, "Line" + r, 0.48f, 0.72f - r * 0.065f, 0.9f, 0.745f - r * 0.065f, line);
+                for (int r = 0; r < 2; r++) Ui.Box(t, "Line" + (r + 4), 0.1f, 0.4f - r * 0.065f, 0.9f, 0.425f - r * 0.065f, line);
+            }
+            else // 검역 소견서: 글줄 + 검사 칸 3개
+            {
+                for (int r = 0; r < 3; r++) Ui.Box(t, "Line" + r, 0.1f, 0.72f - r * 0.065f, 0.9f, 0.745f - r * 0.065f, line);
+                for (int r = 0; r < 3; r++) Ui.Box(t, "Box" + r, 0.1f, 0.42f - r * 0.1f, 0.9f, 0.5f - r * 0.1f, line);
+            }
+            Ui.Circle(t, "Stamp", 0.56f, 0.05f, 0.9f, 0.2f, new Color(0.7f, 0.12f, 0.1f, 0.75f));
+            Ui.Label(t, "Hint", 0.04f, 0.02f, 0.55f, 0.2f, "클릭", 16, Ui.Ink * 2.2f, TextAnchor.MiddleLeft);
+            return b.image.rectTransform;
+        }
+
+        IEnumerator DropDocs(List<RectTransform> docs)
+        {
+            foreach (var d in docs) d.anchoredPosition = new Vector2(0, DropFrom);
+            float total = DropTime + DropStagger * Mathf.Max(0, docs.Count - 1), t = 0f;
+            while (t < total)
+            {
+                t += Time.deltaTime;
+                for (int i = 0; i < docs.Count; i++)
+                {
+                    float k = Mathf.Clamp01((t - i * DropStagger) / DropTime);
+                    float e = 1f - Mathf.Pow(1f - k, 3f); // 빠르게 떨어지다 책상에서 멈춤
+                    docs[i].anchoredPosition = new Vector2(0, Mathf.Lerp(DropFrom, 0f, e));
+                }
+                yield return null;
+            }
+            foreach (var d in docs) d.anchoredPosition = Vector2.zero;
+            Play(_tick);
+            _dropCo = null;
+        }
+
+        // 작은 서류 클릭 → 서류 검토 영역 가득 확대 (작은 서류 자리에서 커지는 움직임)
+        void OpenDoc(int i)
+        {
+            if (_overlay != null || i < 0 || i >= _smallDocs.Count) return;
+            _tab = i;
+            _docView.gameObject.SetActive(true);
+            RebuildDoc();
+            if (_zoomCo != null) StopCoroutine(_zoomCo);
+            _zoomCo = StartCoroutine(ZoomFrom(_smallDocs[i]));
+            Play(_tick);
+        }
+
+        void CloseDoc()
+        {
+            if (_zoomCo != null) { StopCoroutine(_zoomCo); _zoomCo = null; }
+            _tab = -1;
+            if (_pickA != null && (_pickA.Src == Source.TravelPass || _pickA.Src == Source.Quarantine)) SetInspect(_inspect);
+            if (_docView != null)
+            {
+                _docView.localScale = Vector3.one;
+                _docView.gameObject.SetActive(false);
+            }
+            RebuildDoc();
+        }
+
+        IEnumerator ZoomFrom(RectTransform small)
+        {
+            Vector3 home = _docView.localPosition;
+            Vector3 from = _desk.InverseTransformPoint(small.TransformPoint(small.rect.center));
+            Vector3 s0 = new(small.rect.width / Mathf.Max(1f, _docView.rect.width), small.rect.height / Mathf.Max(1f, _docView.rect.height), 1f);
+            float t = 0f;
+            while (t < ZoomTime)
+            {
+                t += Time.deltaTime;
+                float e = 1f - Mathf.Pow(1f - Mathf.Clamp01(t / ZoomTime), 2f);
+                _docView.localPosition = Vector3.Lerp(from, home, e);
+                _docView.localScale = Vector3.Lerp(s0, Vector3.one, e);
+                yield return null;
+            }
+            _docView.localPosition = home;
+            _docView.localScale = Vector3.one;
+            _zoomCo = null;
+        }
 
         void RebuildDoc()
         {
-            for (int i = 0; i < _tabs.Count; i++)
-            {
-                _tabs[i].image.color = i == _tab ? Ui.Paper : Ui.Solid(Ui.Paper * 0.7f);
-                bool missing = i == 1 && CertMissing;
-                _tabTexts[i].text = missing ? DocTabNames[i] + " (미제출)" : DocTabNames[i];
-                _tabTexts[i].color = missing ? Ui.DenyRed : Ui.Ink;
-            }
             _cells.RemoveAll(c => c.Src == Source.TravelPass || c.Src == Source.Quarantine);
             Ui.Clear(_docContent);
+            if (_tab < 0) return;
             var t = _docContent.transform;
             if (_tab == 0)
             {
@@ -634,7 +752,8 @@ namespace ProtocolSeoul.Game
             yield return new WaitForSeconds(0.8f);
             yield return Shot("day1_intro");
             StartDay();
-            yield return Shot("day1_visitor");
+            yield return new WaitForSeconds(DropTime + DropStagger);
+            yield return Shot("day1_visitor"); // 1일차 서류 칸: 임시 통행증만 (검역 소견서 칸 없음)
             _termTab = 1; RebuildTerminal();
             yield return Shot("day1_manual");
             _termTab = 0; RebuildTerminal();
@@ -644,6 +763,9 @@ namespace ProtocolSeoul.Game
                 if (!shotMismatch && (V.Reason == ErrorKind.BirthMismatch || V.Reason == ErrorKind.AddressMismatch || V.Reason == ErrorKind.IdDigitMismatch))
                 {
                     var f = V.Reason == ErrorKind.BirthMismatch ? Field.BirthDate : V.Reason == ErrorKind.AddressMismatch ? Field.Address : Field.ResidentId;
+                    yield return new WaitForSeconds(DropTime);
+                    OpenDoc(0); // 서류 칸은 서류를 확대해야 생김
+                    yield return new WaitForSeconds(ZoomTime + 0.05f);
                     SetInspect(true);
                     OnCellClicked(_cells.First(c => c.Src == Source.TravelPass && c.Field == f));
                     OnCellClicked(_cells.First(c => c.Src == Source.Database && c.Field == f));
@@ -669,6 +791,8 @@ namespace ProtocolSeoul.Game
             yield return Shot("day1_settlement");
 
             CloseOverlay(); _dayIndex = 1; StartDay();
+            yield return new WaitForSeconds(DropTime + DropStagger);
+            yield return Shot("day2_docs");
             bool shotOutsider = false;
             while (_overlay == null)
             {
@@ -688,10 +812,23 @@ namespace ProtocolSeoul.Game
             CloseOverlay(); _dayIndex = 2; ShowDayIntro();
             yield return Shot("day3_intro");
             StartDay();
-            _tab = 1; RebuildDoc();
+            yield return new WaitForSeconds(DropTime + DropStagger);
+            yield return Shot("day3_docs"); // 검역 소견서가 처음 나오는 날: 칸이 생김
+            OpenDoc(1);
             yield return Shot("day3_cert_tab");
+            CloseDoc();
+            bool shotCertMissing = false;
             while (_overlay == null)
             {
+                if (!shotCertMissing && V.Cert == null)
+                {
+                    yield return new WaitForSeconds(DropTime);
+                    yield return Shot("day3_cert_missing"); // 이미 나온 서류를 안 냄: 빈 칸 "미제출"
+                    OpenDoc(1);
+                    yield return Shot("day3_cert_missing_open");
+                    CloseDoc();
+                    shotCertMissing = true;
+                }
                 log.AppendLine($"D3 {V.Pass.Name} 심은 오류 {V.Planted} → 정답 {V.Correct} ({V.Reason})");
                 Decide(V.Correct);
                 if (_vi == _visitors.Count - 1)
@@ -710,7 +847,7 @@ namespace ProtocolSeoul.Game
             Application.Quit();
         }
 
-        // 사진에 필요한 장면(1일차 DB 불일치, 2일차 외부인)이 나오는 seed 찾기
+        // 사진에 필요한 장면(1일차 DB 불일치, 2일차 외부인, 3일차 검역 소견서 미제출)이 나오는 seed 찾기
         int PickShotSeed()
         {
             for (int s = 1; s < 500; s++)
@@ -719,7 +856,8 @@ namespace ProtocolSeoul.Game
                 var d2 = new VisitorGenerator(_db, s * 31 + 2).GenerateDay(_days[1]);
                 bool mismatch = d1.Any(v => v.Reason is ErrorKind.BirthMismatch or ErrorKind.AddressMismatch or ErrorKind.IdDigitMismatch);
                 bool cleanAfter = d1.SkipWhile(v => v.Reason is not (ErrorKind.BirthMismatch or ErrorKind.AddressMismatch or ErrorKind.IdDigitMismatch)).Skip(1).Any(v => v.Correct == Verdict.Pass);
-                if (mismatch && cleanAfter && d2.Any(v => v.Planted == ErrorKind.OutsiderAppearance)) return s;
+                var d3 = new VisitorGenerator(_db, s * 31 + 3).GenerateDay(_days[2]);
+                if (mismatch && cleanAfter && d2.Any(v => v.Planted == ErrorKind.OutsiderAppearance) && d3.Any(v => v.Cert == null)) return s;
             }
             return 1;
         }
