@@ -104,6 +104,24 @@ namespace ProtocolSeoul.Tests
             Assert.AreEqual(CompareResult.Match, Inspector.Compare(v, rec, Source.TravelPass, Field.Photo, Source.Database, Field.Photo));
         }
 
+        // 초상 (C038): 모든 주민이 초상을 받고, 초상 캡션의 성별이 주민번호 성별과 같음. 서류 사진 = DB 사진.
+        [Test]
+        public void EveryResident_HasPortrait_MatchingSexAndAge()
+        {
+            var db = Db();
+            foreach (var r in db.All)
+            {
+                Assert.That(r.Face.Portrait, Is.InRange(1, 30), r.Name);
+                var e = Portraits.Get(r.Face.Portrait);
+                bool male = Portraits.IsMale(r.ResidentId);
+                Assert.IsTrue(e.Male == null || e.Male == male, $"{r.Name} 성별 다름: {e.Caption}");
+                CollectionAssert.Contains(Portraits.Candidates(Portraits.Age(r.BirthDate), male).Select(c => c.Id).ToList(), e.Id);
+            }
+            var v = new VisitorGenerator(db, 9).Generate(Day(1), ErrorKind.None);
+            Assert.AreEqual(v.Face, v.Pass.Photo);
+            Assert.AreEqual(db.FindByName(v.Pass.Name).Face, v.Pass.Photo);
+        }
+
         [Test]
         public void Quarantine_ExpiresAfterThreeDays()
         {

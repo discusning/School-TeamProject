@@ -83,6 +83,91 @@ namespace ProtocolSeoul.Game
             return b;
         }
 
+        // ───── 받은 UI 그림 (Art/UI/Resources/UI, C037) ─────
+        static readonly System.Collections.Generic.Dictionary<string, Sprite> _art = new();
+
+        // 그림 불러오기. border > 0 이면 테두리를 지키며 늘어나는(9칸) 그림. 파일이 없으면 null → 부르는 쪽이 색 상자로 대신함.
+        public static Sprite Art(string name, float border = 0f)
+        {
+            string key = name + "|" + border;
+            if (_art.TryGetValue(key, out var s)) return s;
+            var tex = Resources.Load<Texture2D>("UI/" + name);
+            if (tex != null)
+                s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(border, border, border, border));
+            _art[key] = s;
+            return s;
+        }
+
+        // 그림 한 장 (색 곱하기 없음)
+        public static Image Picture(Transform parent, string name, float x0, float y0, float x1, float y1, Sprite sprite)
+        {
+            var img = Box(parent, name, x0, y0, x1, y1, Color.white);
+            img.sprite = sprite;
+            img.raycastTarget = false;
+            return img;
+        }
+
+        // 부모 칸 안에 그림 비율(가로/세로)을 지키는 가운데 칸. 그림 위 글자 칸 위치를 그림 기준 비율로 줄 수 있음.
+        public static RectTransform Fit(Transform parent, string name, float x0, float y0, float x1, float y1, float aspect)
+        {
+            var box = Rect(parent, name, x0, y0, x1, y1);
+            var inner = Rect(box, "Fit", 0, 0, 1, 1);
+            var f = inner.gameObject.AddComponent<AspectRatioFitter>();
+            f.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            f.aspectRatio = aspect;
+            return inner;
+        }
+
+        // 테두리 그림(9칸)을 칸 높이에 맞춰 테두리 두께도 같이 줄임
+        public static void Sliced(Image img, Sprite sprite)
+        {
+            img.sprite = sprite;
+            img.type = Image.Type.Sliced;
+            img.color = Color.white;
+            if (img.GetComponent<SliceFit>() == null) img.gameObject.AddComponent<SliceFit>();
+        }
+
+        // 그림 버튼: 기본·마우스 올림·클릭·비활성 4장을 바꿔 끼움. 글자는 게임 글꼴로 그림 위에 씀.
+        public static Button SpriteButton(Transform parent, string name, float x0, float y0, float x1, float y1, string text, Sprite[] states, Color fg, int size, Action onClick)
+        {
+            var b = Button(parent, name, x0, y0, x1, y1, text, Color.white, fg, size, onClick);
+            SetSprites(b, states);
+            return b;
+        }
+
+        // states: 0 기본 · 1 마우스 올림 · 2 클릭 · 3 비활성 (없으면 기본)
+        public static void SetSprites(Button b, Sprite[] states)
+        {
+            if (states == null || states[0] == null) return;
+            b.image.sprite = states[0];
+            b.image.color = Color.white;
+            b.transition = Selectable.Transition.SpriteSwap;
+            b.spriteState = new SpriteState
+            {
+                highlightedSprite = states[1],
+                pressedSprite = states[2],
+                selectedSprite = states[0],
+                disabledSprite = states.Length > 3 ? states[3] : states[0],
+            };
+        }
+
+        // 칸에 안 들어가면 글자 크기를 줄임 (fontSize가 최대)
+        public static Text Shrink(Text t, int min)
+        {
+            t.resizeTextForBestFit = true;
+            t.resizeTextMinSize = min;
+            t.resizeTextMaxSize = t.fontSize;
+            t.verticalOverflow = VerticalWrapMode.Truncate;
+            return t;
+        }
+
+        public static Sprite[] ArtSet(params string[] names)
+        {
+            var a = new Sprite[names.Length];
+            for (int i = 0; i < names.Length; i++) a[i] = Art(names[i]);
+            return a;
+        }
+
         public static void Clear(Transform t)
         {
             for (int i = t.childCount - 1; i >= 0; i--) UnityEngine.Object.Destroy(t.GetChild(i).gameObject);
@@ -106,6 +191,24 @@ namespace ProtocolSeoul.Game
             tex.Apply();
             _circle = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f);
             return _circle;
+        }
+    }
+
+    // 9칸 그림의 테두리 두께를 칸 높이 비율대로 맞춤 (원본 높이 ÷ 칸 높이)
+    [RequireComponent(typeof(Image))]
+    public class SliceFit : MonoBehaviour
+    {
+        Image _img;
+        void OnEnable() => Apply();
+        void OnRectTransformDimensionsChange() => Apply();
+        void Apply()
+        {
+            if (_img == null) _img = GetComponent<Image>();
+            if (_img == null || _img.sprite == null) return;
+            float h = ((RectTransform)transform).rect.height;
+            if (h <= 1f) return;
+            float m = _img.sprite.rect.height / h;
+            if (!Mathf.Approximately(_img.pixelsPerUnitMultiplier, m)) _img.pixelsPerUnitMultiplier = m;
         }
     }
 }

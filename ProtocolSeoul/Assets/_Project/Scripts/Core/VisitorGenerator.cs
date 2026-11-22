@@ -42,8 +42,12 @@ namespace ProtocolSeoul
             used ??= new HashSet<string>();
             var pool = (kind == ErrorKind.CriminalRecord ? _db.Criminals : _db.Clean).Where(r => !used.Contains(r.Name)).ToList();
             if (pool.Count == 0) pool = _db.All.ToList();
+            // 같은 날 같은 초상 그림이 두 번 나오지 않게 (남은 사람이 있을 때만)
+            var fresh = pool.Where(x => !used.Contains("#P" + x.Face.Portrait)).ToList();
+            if (fresh.Count > 0) pool = fresh;
             var r = pool[_rng.Next(pool.Count)];
             used.Add(r.Name);
+            used.Add("#P" + r.Face.Portrait);
 
             var v = new Visitor
             {

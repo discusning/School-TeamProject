@@ -72,7 +72,7 @@ namespace ProtocolSeoul
                 string name = Surnames[rng.Next(Surnames.Length)] + Given[rng.Next(Given.Length)];
                 if (db.Contains(name)) continue;
                 var birth = new DateTime(rng.Next(1985, 2032), rng.Next(1, 13), rng.Next(1, 29));
-                db.Add(new Resident
+                var r = new Resident
                 {
                     Name = name,
                     BirthDate = birth,
@@ -80,7 +80,10 @@ namespace ProtocolSeoul
                     Address = MakeAddress(rng),
                     Face = new Face(rng.Next(4), rng.Next(4)),
                     CriminalRecord = rng.NextDouble() < 0.2 ? Crimes[rng.Next(Crimes.Length)] : null,
-                });
+                };
+                // 초상: 나이·성별 맞는 그림 중 하나 (난수를 더 뽑지 않아 기존 DB 내용은 그대로)
+                r.Face.Portrait = Portraits.Pick(birth, r.ResidentId, r.Face.Skin * 4 + r.Face.Hair + birth.Day + db._byName.Count);
+                db.Add(r);
             }
             return db;
         }

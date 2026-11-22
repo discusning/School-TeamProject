@@ -28,16 +28,17 @@ namespace ProtocolSeoul
 
     public enum CompareResult { Match, Mismatch, Unrelated }
 
-    // 얼굴 (임시 그림: 도형). 외부인은 눈 위치나 목 길이가 다름 (That's Not My Neighbor 방식).
+    // 얼굴. Portrait = 초상 그림 번호 (1~30, Portraits.cs). 0이면 도형 얼굴.
+    // 외부인은 같은 초상을 좌우 반전(EyeOffset ≠ 0)하거나 세로로 늘림(Neck = 1) (That's Not My Neighbor 방식).
     [Serializable]
     public struct Face : IEquatable<Face>
     {
-        public int Skin, Hair, EyeOffset, Neck;
-        public Face(int skin, int hair, int eyeOffset = 0, int neck = 0) { Skin = skin; Hair = hair; EyeOffset = eyeOffset; Neck = neck; }
-        public bool Equals(Face o) => Skin == o.Skin && Hair == o.Hair && EyeOffset == o.EyeOffset && Neck == o.Neck;
+        public int Skin, Hair, EyeOffset, Neck, Portrait;
+        public Face(int skin, int hair, int eyeOffset = 0, int neck = 0, int portrait = 0) { Skin = skin; Hair = hair; EyeOffset = eyeOffset; Neck = neck; Portrait = portrait; }
+        public bool Equals(Face o) => Skin == o.Skin && Hair == o.Hair && EyeOffset == o.EyeOffset && Neck == o.Neck && Portrait == o.Portrait;
         public override bool Equals(object obj) => obj is Face f && Equals(f);
-        public override int GetHashCode() => (Skin, Hair, EyeOffset, Neck).GetHashCode();
-        public override string ToString() => $"F{Skin}{Hair}{EyeOffset}{Neck}";
+        public override int GetHashCode() => (Skin, Hair, EyeOffset, Neck, Portrait).GetHashCode();
+        public override string ToString() => $"F{Skin}{Hair}{EyeOffset}{Neck}P{Portrait}";
     }
 
     public static class Fmt
