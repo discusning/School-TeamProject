@@ -16,7 +16,7 @@ namespace ProtocolSeoul.Tests
         public void Database_HasUniqueNamesAndValidIds()
         {
             var db = Db();
-            Assert.AreEqual(60, db.All.Count);
+            Assert.AreEqual(61, db.All.Count); // 주민 60 + 대본 인물 진00
             foreach (var r in db.All)
             {
                 StringAssert.StartsWith(r.BirthDate.ToString("yyMMdd"), r.ResidentId);
@@ -40,20 +40,39 @@ namespace ProtocolSeoul.Tests
             }
         }
 
-        // 심은 오류는 반드시 그 오류 이유로 거부되어야 한다 (생성기와 판정이 같은 기준인지)
+        // 심은 오류는 반드시 그 오류 이유로 거부(얼굴 이상은 사살)되어야 한다 (생성기와 판정이 같은 기준인지)
         [Test]
         public void EveryPlantedError_IsDeniedForThatReason()
         {
             var db = Db();
-            var day3 = Day(3); // 모든 규칙이 켜진 날
             var gen = new VisitorGenerator(db, seed: 7);
-            foreach (var kind in day3.Rules)
-                for (int i = 0; i < 20; i++)
-                {
-                    var v = gen.Generate(day3, kind);
-                    Assert.AreEqual(Verdict.Deny, v.Correct, $"{kind} 방문자가 통과됨");
-                    Assert.AreEqual(kind, v.Reason, $"{kind}를 심었는데 이유가 {v.Reason}");
-                }
+            for (int d = 1; d <= 3; d++)
+            {
+                var day = Day(d);
+                foreach (var kind in day.Rules)
+                    for (int i = 0; i < 20; i++)
+                    {
+                        var v = gen.Generate(day, kind);
+                        var want = kind == ErrorKind.OutsiderAppearance ? Verdict.Kill : Verdict.Deny;
+                        Assert.AreEqual(want, v.Correct, $"{d}일차 {kind} 방문자 판정이 {v.Correct}");
+                        Assert.AreEqual(kind, v.Reason, $"{d}일차 {kind}를 심었는데 이유가 {v.Reason}");
+                    }
+            }
+        }
+
+        // 1일차 DB 없음: DB에 없는 이름이어도 DB 규칙으로 거부하지 않음. 3일차 대본 인물: 강00 통행증 없음 → 거부, 진00 서류 완벽 → 통과
+        [Test]
+        public void Day1_NoDb_Day3_StoryVisitors()
+        {
+            var db = Db();
+            Assert.IsFalse(Day(1).Has(ErrorKind.NotInDatabase));
+            var list = new VisitorGenerator(db, 11).GenerateDay(Day(3));
+            var kang = list.Single(v => v.Story == "kang");
+            var jin = list.Single(v => v.Story == "jin");
+            Assert.AreEqual(Verdict.Deny, kang.Correct);
+            Assert.AreEqual(ErrorKind.PassMissing, kang.Reason);
+            Assert.AreEqual(Verdict.Pass, jin.Correct, $"진00 이유 {jin.Reason}");
+            Assert.Less(list.IndexOf(kang), list.IndexOf(jin));
         }
 
         [Test]
@@ -64,8 +83,8 @@ namespace ProtocolSeoul.Tests
                 for (int seed = 0; seed < 20; seed++)
                 {
                     var list = new VisitorGenerator(db, seed).GenerateDay(day);
-                    Assert.AreEqual(day.VisitorCount, list.Count);
-                    Assert.IsTrue(list.Any(v => v.Correct == Verdict.Deny), $"{day.Day}일차 seed {seed}: 오류 방문자 없음");
+                    Assert.AreEqual(day.VisitorCount + day.ScriptedVisitors.Count, list.Count);
+                    Assert.IsTrue(list.Any(v => v.Correct != Verdict.Pass), $"{day.Day}일차 seed {seed}: 오류 방문자 없음");
                     Assert.IsTrue(list.All(v => v.Planted == ErrorKind.None || day.Has(v.Planted)), "꺼진 규칙의 오류가 심어짐");
                     Assert.AreEqual(list.Count, list.Select(v => v.Pass.Name).Distinct().Count(), "같은 사람이 하루에 두 번 옴");
                 }
@@ -146,6 +165,12 @@ namespace ProtocolSeoul.Tests
             Assert.AreEqual(2, ledger.CorrectCount);
             Assert.AreEqual(3, ledger.Mistakes);
             Assert.AreEqual(2 * DayLedger.RationPerCorrect - DayLedger.PenaltyPerMistake, ledger.Total);
+            Assert.AreEqual("식량 감소", ledger.Stage);
+            ledger.Record(gen.Generate(Day(1), ErrorKind.None), Verdict.Deny); // 실수 4 → 식량 미지급
+            Assert.AreEqual(0, ledger.Total);
+            Assert.IsFalse(ledger.Fired);
+            ledger.Record(gen.Generate(Day(1), ErrorKind.None), Verdict.Deny); // 실수 5 → 퇴출
+            Assert.IsTrue(ledger.Fired);
         }
     }
 }

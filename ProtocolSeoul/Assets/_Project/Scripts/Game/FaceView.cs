@@ -27,11 +27,12 @@ namespace ProtocolSeoul.Game
             return s;
         }
 
-        public static void Draw(Transform area, Face f, Color bg)
+        // topAlign: 그림 폭을 칸 폭에 맞추고 위쪽(머리)을 칸 위에 붙임. 칸보다 길면 아래(가슴)가 잘림 — 부스 초상 (C050)
+        public static void Draw(Transform area, Face f, Color bg, bool topAlign = false)
         {
             Ui.Clear(area);
             var portrait = Portrait(f.Portrait);
-            if (portrait != null) { DrawPortrait(area, f, portrait); return; }
+            if (portrait != null) { if (topAlign) DrawPortraitTop(area, f, portrait); else DrawPortrait(area, f, portrait); return; }
 
             Ui.Box(area, "Bg", 0, 0, 1, 1, bg);
             Color skin = Skins[f.Skin % Skins.Length], hair = Hairs[f.Hair % Hairs.Length];
@@ -68,6 +69,23 @@ namespace ProtocolSeoul.Game
             var fit = img.gameObject.AddComponent<AspectRatioFitter>();
             fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
             fit.aspectRatio = s.rect.width / s.rect.height;
+            rt.localScale = new Vector3(f.EyeOffset != 0 ? -1f : 1f, f.Neck == 1 ? NeckStretch : 1f, 1f);
+        }
+
+        // 부스 초상: 칸 폭을 꽉 채움 (3:4 유지). 위를 맞추고 넘치는 아래쪽을 자름
+        static void DrawPortraitTop(Transform area, Face f, Sprite s)
+        {
+            if (area.GetComponent<RectMask2D>() == null) area.gameObject.AddComponent<RectMask2D>();
+            var holder = Ui.Rect(area, "PortraitTop", 0, 1, 1, 1);
+            holder.pivot = new Vector2(0.5f, 1f);
+            var hf = holder.gameObject.AddComponent<AspectRatioFitter>();
+            hf.aspectMode = AspectRatioFitter.AspectMode.WidthControlsHeight;
+            hf.aspectRatio = s.rect.width / s.rect.height;
+            var img = Ui.Picture(holder, "Portrait", 0, 0, 1, 1, s);
+            img.raycastTarget = false;
+            var rt = img.rectTransform;
+            rt.pivot = new Vector2(0.5f, 1f); // 목 늘림(외부인)도 위 기준 → 머리 위가 잘리지 않음
+            rt.anchoredPosition = Vector2.zero;
             rt.localScale = new Vector3(f.EyeOffset != 0 ? -1f : 1f, f.Neck == 1 ? NeckStretch : 1f, 1f);
         }
     }

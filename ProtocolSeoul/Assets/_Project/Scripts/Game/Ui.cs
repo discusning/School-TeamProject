@@ -211,4 +211,23 @@ namespace ProtocolSeoul.Game
             if (!Mathf.Approximately(_img.pixelsPerUnitMultiplier, m)) _img.pixelsPerUnitMultiplier = m;
         }
     }
+
+    // 버튼 그림 중 클릭 그림처럼 글줄 칸이 다른 자리에 있는 그림이 보일 때, 글자 칸도 같은 만큼 옮김
+    public class LabelFollowSprite : MonoBehaviour
+    {
+        public Image Target;
+        public RectTransform Label;
+        public Vector2 BaseMin, BaseMax;               // 기본 그림에서 글자 칸 (그림 기준 비율)
+        public System.Collections.Generic.List<Sprite> Moved = new System.Collections.Generic.List<Sprite>();
+        public Vector2 Shift;                          // Moved 그림이 보일 때 더할 값 (그림 기준 비율)
+
+        void LateUpdate()
+        {
+            if (Target == null || Label == null) return;
+            bool moved = Moved.Contains(Target.overrideSprite);   // overrideSprite = 지금 보이는 그림
+            var min = moved ? BaseMin + Shift : BaseMin;
+            var max = moved ? BaseMax + Shift : BaseMax;
+            if (Label.anchorMin != min || Label.anchorMax != max) { Label.anchorMin = min; Label.anchorMax = max; }
+        }
+    }
 }

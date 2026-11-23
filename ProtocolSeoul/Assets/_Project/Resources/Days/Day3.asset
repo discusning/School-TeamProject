@@ -16,11 +16,9 @@ MonoBehaviour:
   Date: 2050-03-03
   VisitorCount: 8
   ErrorRate: 0.5
-  Rules: 010000000200000003000000040000000600000005000000080000000900000007000000
-  Briefing: "\uC624\uB298\uBD80\uD130 \uBC29\uC0AC\uB2A5/\uBC14\uC774\uB7EC\uC2A4
-    \uAC80\uC5ED \uC18C\uACAC\uC11C\uAC00 \uD544\uC218\uB2E4.\n\uAC80\uC0AC\uC77C\uC774
-    \uC624\uB298 \uAE30\uC900 3\uC77C \uC774\uB0B4\uC5EC\uC57C \uD55C\uB2E4.\nDB\uC5D0
-    \uBC94\uC8C4 \uC774\uB825\uC774 \uC788\uB294 \uC790\uB3C4 \uAC70\uBD80\uD558\uB77C."
-  RuleShort: "+ \uAC80\uC5ED \uC18C\uACAC\uC11C (\uAC80\uC0AC\uC77C 3\uC77C \uC774\uB0B4)
-    \xB7 \uBC94\uC8C4 \uC774\uB825 \uAC70\uBD80"
-  ScriptedVisitors: []
+  Rules: 010000000200000004000000060000000a0000000b00000008000000090000000700000010000000110000001200000013000000
+  Briefing: "주민등록 DB 정상 가동\n임시통행증 (이름, 얼굴, 주민번호, 주소, 범죄기록)\n입성 사유서 (이름, 사유)\n3일차 입성사유 허용 : 공격적이지 않으면 허용\n검역 소견서 필수 (검사일 3일 이내) · DB에 범죄 이력이 있으면 거부"
+  RuleShort: "+ 입성 사유서 · 검역 소견서 · 범죄 이력 거부"
+  ScriptedVisitors:
+  - kang
+  - jin

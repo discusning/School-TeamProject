@@ -11,6 +11,7 @@ namespace ProtocolSeoul
             {
                 case Source.TravelPass:
                     var p = v.Pass;
+                    if (v.PassMissing) return null;
                     return f switch
                     {
                         Field.Name => p.Name,
@@ -20,6 +21,17 @@ namespace ProtocolSeoul
                         Field.Photo => p.Photo.ToString(),
                         Field.Stamp => p.Stamp,
                         Field.IssueDate => Fmt.Date(p.IssueDate),
+                        Field.CriminalRecord => p.CriminalRecord ?? "없음",
+                        _ => null,
+                    };
+                case Source.EntryPermit:
+                    var e = v.Permit;
+                    if (e == null) return null;
+                    return f switch
+                    {
+                        Field.Name => e.Name,
+                        Field.Reason => e.Reason,
+                        Field.Destination => e.Destination,
                         _ => null,
                     };
                 case Source.Quarantine:

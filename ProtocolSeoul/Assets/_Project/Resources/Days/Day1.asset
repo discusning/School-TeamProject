@@ -16,10 +16,7 @@ MonoBehaviour:
   Date: 2050-03-01
   VisitorCount: 6
   ErrorRate: 0.4
-  Rules: 01000000020000000300000004000000
-  Briefing: "\uC81C2\uAC80\uBB38\uC18C \uADFC\uBB34 \uCCAB\uB0A0.\n\uC784\uC2DC \uD1B5\uD589\uC99D\uC758
-    \uC774\uB984\xB7\uC8FC\uBBFC\uBC88\uD638\xB7\uC0DD\uB144\uC6D4\uC77C\xB7\uC8FC\uC18C\uB97C
-    \uC8FC\uBBFC\uB4F1\uB85D DB\uC640 \uB300\uC870\uD558\uB77C.\n\uD558\uB098\uB77C\uB3C4
-    \uB2E4\uB974\uAC70\uB098 DB\uC5D0 \uC5C6\uC73C\uBA74 \uAC70\uBD80."
-  RuleShort: "\uD1B5\uD589\uC99D \u2194 \uC8FC\uBBFC\uB4F1\uB85D DB \uB300\uC870"
+  Rules: 060000000a0000000b0000000c0000000d0000000e0000000f000000
+  Briefing: "통과, 거부, 제거 버튼 활성화\n주민등록 DB 없음\n얼굴과 임시통행증을 보고 판단"
+  RuleShort: "얼굴 · 임시통행증 확인 (주민등록 DB 없음)"
   ScriptedVisitors: []

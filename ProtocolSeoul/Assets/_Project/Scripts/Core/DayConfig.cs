@@ -24,18 +24,21 @@ namespace ProtocolSeoul
         // 기본 3일 (에셋이 없을 때·테스트용). 규칙이 하루에 하나씩 늘어남 (페이퍼 플리즈 방식, 보고서 "날짜별 규칙 추가")
         public static List<DayConfig> Defaults()
         {
-            var db = new[] { ErrorKind.NotInDatabase, ErrorKind.IdDigitMismatch, ErrorKind.BirthMismatch, ErrorKind.AddressMismatch };
-            var d2 = new List<ErrorKind>(db) { ErrorKind.OutsiderAppearance, ErrorKind.ForgedStamp };
-            var d3 = new List<ErrorKind>(d2) { ErrorKind.QuarantineMissing, ErrorKind.QuarantineExpired, ErrorKind.CriminalRecord };
-            return new List<DayConfig>
+            // Resources/Days/Day1~3.asset과 같은 규칙 (1주차 스토리 261122 "일차별 확인 항목과 판정")
+            var d1 = new[] { ErrorKind.OutsiderAppearance, ErrorKind.PassMissing, ErrorKind.PassDateWrong, ErrorKind.AgeMismatch, ErrorKind.PhotoMismatch, ErrorKind.SpokenNameMismatch, ErrorKind.NotSeoul };
+            var d2 = new List<ErrorKind> { ErrorKind.NotInDatabase, ErrorKind.IdDigitMismatch, ErrorKind.AddressMismatch, ErrorKind.OutsiderAppearance, ErrorKind.PassMissing, ErrorKind.PassDateWrong };
+            var d3 = new List<ErrorKind>(d2) { ErrorKind.QuarantineMissing, ErrorKind.QuarantineExpired, ErrorKind.CriminalRecord, ErrorKind.EntryMissing, ErrorKind.EntryNameMismatch, ErrorKind.EntryReasonDenied, ErrorKind.EntryDestMismatch };
+            var days = new List<DayConfig>
             {
-                Make(1, 6, 0.4f, "통행증 ↔ 주민등록 DB 대조",
-                    "제2검문소 근무 첫날.\n임시 통행증의 이름·주민번호·생년월일·주소를 주민등록 DB와 대조하라.\n하나라도 다르거나 DB에 없으면 거부.", db),
-                Make(2, 7, 0.45f, "DB 대조 + 얼굴 확인 + 도장 확인",
-                    "어젯밤 외부인이 섞여 들어왔다는 보고가 있다.\n부스의 얼굴이 DB 사진과 다르면 거부하라.\n정상 도장은 「" + ProtocolSeoul.Rules.GenuineStamp + "」 뿐이다.", d2.ToArray()),
-                Make(3, 8, 0.5f, "+ 검역 소견서 (검사일 3일 이내) · 범죄 이력 거부",
-                    "오늘부터 방사능/바이러스 검역 소견서가 필수다.\n검사일이 오늘 기준 3일 이내여야 한다.\nDB에 범죄 이력이 있는 자도 거부하라.", d3.ToArray()),
+                Make(1, 6, 0.4f, "얼굴 · 임시통행증 확인 (주민등록 DB 없음)",
+                    "통과, 거부, 제거 버튼 활성화\n주민등록 DB 없음\n얼굴과 임시통행증을 보고 판단", d1),
+                Make(2, 7, 0.45f, "+ DB 대조 (주민번호 · 이름 · 주소) · 모든 도시 사람",
+                    "주민등록 DB 복구\n임시통행증 (이름, 얼굴, 주민번호, 주소, 범죄기록)\nDB복구로 모든 도시 사람 받을 수 있음.", d2.ToArray()),
+                Make(3, 8, 0.5f, "+ 입성 사유서 · 검역 소견서 · 범죄 이력 거부",
+                    "주민등록 DB 정상 가동\n임시통행증 (이름, 얼굴, 주민번호, 주소, 범죄기록)\n입성 사유서 (이름, 사유)\n3일차 입성사유 허용 : 공격적이지 않으면 허용\n검역 소견서 필수 (검사일 3일 이내) · DB에 범죄 이력이 있으면 거부", d3.ToArray()),
             };
+            days[2].ScriptedVisitors = new List<string> { "kang", "jin" };
+            return days;
         }
 
         public static DayConfig Make(int day, int count, float rate, string ruleShort, string briefing, params ErrorKind[] rules)

@@ -16,10 +16,7 @@ MonoBehaviour:
   Date: 2050-03-02
   VisitorCount: 7
   ErrorRate: 0.45
-  Rules: 010000000200000003000000040000000600000005000000
-  Briefing: "\uC5B4\uC82F\uBC24 \uC678\uBD80\uC778\uC774 \uC11E\uC5EC \uB4E4\uC5B4\uC654\uB2E4\uB294
-    \uBCF4\uACE0\uAC00 \uC788\uB2E4.\n\uBD80\uC2A4\uC758 \uC5BC\uAD74\uC774 DB \uC0AC\uC9C4\uACFC
-    \uB2E4\uB974\uBA74 \uAC70\uBD80\uD558\uB77C.\n\uC815\uC0C1 \uB3C4\uC7A5\uC740
-    \u300C\uC81C1\uC120\uBCC4\uC18C \uD655\uC778\u300D \uBFD0\uC774\uB2E4."
-  RuleShort: "DB \uB300\uC870 + \uC5BC\uAD74 \uD655\uC778 + \uB3C4\uC7A5 \uD655\uC778"
+  Rules: 010000000200000004000000060000000a0000000b000000
+  Briefing: "주민등록 DB 복구\n임시통행증 (이름, 얼굴, 주민번호, 주소, 범죄기록)\nDB복구로 모든 도시 사람 받을 수 있음."
+  RuleShort: "+ DB 대조 (주민번호 · 이름 · 주소) · 모든 도시 사람"
   ScriptedVisitors: []

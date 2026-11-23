@@ -15,7 +15,7 @@ namespace ProtocolSeoul
     // 임시 통행증 — 1차 선별소 발급. DB 항목 복사본 + 발급일 + 도장
     public class TravelPass
     {
-        public string Name, ResidentId, Address, Stamp;
+        public string Name, ResidentId, Address, Stamp, CriminalRecord; // 범죄기록 칸 (2일차~, 261122). 없으면 null
         public DateTime BirthDate, IssueDate;
         public Face Photo;
         public TravelPass Clone() => (TravelPass)MemberwiseClone();
@@ -28,8 +28,20 @@ namespace ProtocolSeoul
         public DateTime TestDate;
     }
 
+    // 입성 사유서 (3일차~, 1주차 스토리 261122): 이름 · 사유 · 목적지
+    public class EntryPermit
+    {
+        public string Name, Reason, Destination;
+    }
+
     public class Visitor
     {
+        public bool PassMissing;            // 임시통행증을 안 냄 (Pass는 DB 찾기용으로만 남음)
+        public string SaidName;             // 말한 이름 (1일차 대화 로그 대조)
+        public int SaidAge = -1;            // 말한 나이 (1일차)
+        public string SaidDest;             // 말한 목적지 (3일차 사유서 대조)
+        public EntryPermit Permit;          // 입성 사유서 (없을 수 있음)
+        public string Story;                // 대본 인물 (kang · jin). 일반 방문자는 null
         public string Line;                 // 말풍선 대사
         public Face Face;                   // 부스에 실제로 보이는 얼굴
         public TravelPass Pass;
@@ -53,7 +65,16 @@ namespace ProtocolSeoul
         public static readonly string[] Districts = { "강남", "서초", "송파", "용산", "마포", "종로" };
         static readonly string[] Crimes = { "절도 (2047)", "강도 (2048)", "배급품 위조 (2049)", "폭행 (2046)" };
 
-        public static string MakeAddress(Random rng) => $"{Districts[rng.Next(Districts.Length)]} {(char)('A' + rng.Next(4))}-{rng.Next(1, 21)} 블록";
+        // 서울 밖 도시 (1일차엔 서울 사람만 받음, 2일차 DB 복구 뒤 모든 도시 사람). 도시 이름은 가정
+        static readonly string[] OtherCities = { "인천 부평", "수원 팔달", "대전 유성", "부산 해운대" };
+        public const string Seoul = "서울";
+        public static bool IsSeoul(string address) => address != null && address.StartsWith(Seoul + " ");
+
+        public static string MakeAddress(Random rng)
+        {
+            string area = rng.NextDouble() < 0.25 ? OtherCities[rng.Next(OtherCities.Length)] : Seoul + " " + Districts[rng.Next(Districts.Length)];
+            return $"{area} {(char)('A' + rng.Next(4))}-{rng.Next(1, 21)} 블록";
+        }
 
         public static string MakeId(DateTime birth, Random rng)
         {
@@ -85,10 +106,17 @@ namespace ProtocolSeoul
                 r.Face.Portrait = Portraits.Pick(birth, r.ResidentId, r.Face.Skin * 4 + r.Face.Hair + birth.Day + db._byName.Count);
                 db.Add(r);
             }
+            // 대본 인물 진00 (20대 후반 남). 위조 서류가 완벽해 DB와 맞음 (1주차 스토리 261122 강00 이벤트). 세부 값은 가정
+            var jb = new DateTime(2022, 6, 14);
+            var jin = new Resident { Name = JinName, BirthDate = jb, ResidentId = "220614-3482915", Address = "서울 마포 B-7 블록", Face = new Face(1, 0) };
+            jin.Face.Portrait = Portraits.Pick(jb, jin.ResidentId, 0);
+            db.Add(jin);
             return db;
         }
 
-        public IEnumerable<Resident> Clean => All.Where(r => r.CriminalRecord == null);
+        public const string JinName = "진00", KangName = "강00";
+
+        public IEnumerable<Resident> Clean => All.Where(r => r.CriminalRecord == null && r.Name != JinName);
         public IEnumerable<Resident> Criminals => All.Where(r => r.CriminalRecord != null);
     }
 }
