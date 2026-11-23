@@ -20,8 +20,9 @@ namespace ProtocolSeoul
         public readonly List<Entry> Entries = new();
 
         public void Record(Visitor v, Verdict chosen) => Entries.Add(new Entry { Visitor = v, Chosen = chosen });
-        // 진00(대본 선택)은 실수로 세지 않음 — 플레이어의 선택으로 기록 (가정)
-        static bool Scored(Entry e) => e.Visitor.Story != "jin";
+        // 진00 · 4일차 강00(대본 선택)은 실수로 세지 않음 — 플레이어의 선택으로 기록 (가정)
+        public static bool IsChoice(Visitor v) => v.Story == "jin" || v.Story == VisitorGenerator.KangForged;
+        static bool Scored(Entry e) => !IsChoice(e.Visitor);
         public int CorrectCount => Entries.Count(e => Scored(e) && e.Correct);
         public int Mistakes => Entries.Count(e => Scored(e) && !e.Correct);
         public int Earned => CorrectCount * RationPerCorrect;
@@ -33,6 +34,9 @@ namespace ProtocolSeoul
         public bool Fired => Mistakes >= FiredAt;
         public bool RationStopped => Mistakes >= RationStopAt;
         public int Total => RationStopped ? 0 : Earned - Penalty;
+        // 자폭 배드 엔딩 (1주차 스토리 261122 분기 B): 3일차 진00 통과 → 4일차 강00 통과. 4일차 일이 끝난 밤에 일어남
+        public static bool BombEnding(bool jinPassed, Verdict kangChoice) => jinPassed && kangChoice == Verdict.Pass;
+
         public string Stage => Mistakes >= FiredAt ? "퇴출 (배드엔딩)" : Mistakes >= RationStopAt ? "식량 미지급" : Mistakes >= RationCutAt ? "식량 감소" : Mistakes > 0 ? "경고" : "실수 없음";
     }
 }

@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d90f7459715931a4bb54a09f0e9cd5a3, type: 3}
+  m_Name: Day4
+  m_EditorClassIdentifier: ProtocolSeoul.Core::ProtocolSeoul.DayConfig
+  Day: 4
+  Date: 2050-03-04
+  VisitorCount: 8
+  ErrorRate: 0.5
+  Rules: 010000000200000004000000060000000a0000000b00000008000000090000000700000010000000110000001200000013000000
+  Briefing: "주민등록 DB 정상 가동\n임시통행증 (이름, 얼굴, 주민번호, 주소, 범죄기록)\n입성 사유서 (이름, 사유)\n3일차 입성사유 허용 : 공격적이지 않으면 허용\n검역 소견서 필수 (검사일 3일 이내) · DB에 범죄 이력이 있으면 거부"
+  RuleShort: "3일차와 같음 (입성 사유서 · 범죄 이력 거부)"
+  ScriptedVisitors:
+  - kang_forged

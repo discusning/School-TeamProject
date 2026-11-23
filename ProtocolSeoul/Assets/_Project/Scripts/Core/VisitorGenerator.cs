@@ -42,12 +42,19 @@ namespace ProtocolSeoul
             // 대본 인물 (에셋 ScriptedVisitors): 강00은 앞쪽, 진00은 그 뒤 끝 무렵에 옴 (순서 자리는 가정)
             if (day.ScriptedVisitors.Contains("kang")) list.Insert(Math.Min(1, list.Count), Kang(day));
             if (day.ScriptedVisitors.Contains("jin")) list.Insert(Math.Max(0, list.Count - 1), Jin(day));
+            // 4일차 강00 (분기 B·C): 3일차에 진00을 들여보냈을 때만 위조 서류로 옴. 진00을 거부했으면(분기 A) 오지 않음 (순서 자리는 가정)
+            if (day.ScriptedVisitors.Contains(KangForged) && JinPassed) list.Insert(list.Count / 2, ForgedKang(day));
             return list;
         }
 
+        // 4일차 대본 자리 이름 (에셋 ScriptedVisitors) · 방문자 Story 값
+        public const string KangForged = "kang_forged";
+        // 3일차 진00을 통과시켰는지 (게임이 넘겨줌). 4일차 강00 등장 조건
+        public bool JinPassed;
+
         bool Speaks(DayConfig day) => day.Has(ErrorKind.SpokenNameMismatch) || day.Has(ErrorKind.AgeMismatch);
-        static bool PermitDay(DayConfig day) => day.Has(ErrorKind.EntryMissing) || day.Has(ErrorKind.EntryNameMismatch) || day.Has(ErrorKind.EntryReasonDenied) || day.Has(ErrorKind.EntryDestMismatch);
-        static bool CertDay(DayConfig day) => day.Has(ErrorKind.QuarantineMissing) || day.Has(ErrorKind.QuarantineExpired);
+        static bool PermitDay(DayConfig day) => day.HasPermit;
+        static bool CertDay(DayConfig day) => day.HasCert;
 
         public Visitor Generate(DayConfig day, ErrorKind kind, HashSet<string> used = null)
         {
@@ -198,14 +205,32 @@ namespace ProtocolSeoul
         // 강00 (56세, 남, 외부인): 정식 서류 없이 창살 너머 귓속말 (3일차)
         Visitor Kang(DayConfig day)
         {
-            var birth = new DateTime(1993, 11, 2);
-            const string id = "931102-1530271";
+            var birth = ResidentDatabase.KangBirth;
+            const string id = ResidentDatabase.KangId;
             var face = new Face(2, 2) { Portrait = Portraits.Pick(birth, id, 0) };
             var v = new Visitor
             {
                 Story = "kang", Line = KangLine, Face = face, PassMissing = true,
                 Pass = new TravelPass { Name = ResidentDatabase.KangName, ResidentId = id, BirthDate = birth, Address = "", Photo = face, IssueDate = day.Today, Stamp = "" },
             };
+            (v.Correct, v.Reason) = Rules.Judge(v, day, _db);
+            return v;
+        }
+
+        // 강00 (4일차, 분기 B·C): "진00과 같은 방식"의 위조 서류 → 겉으로는 완벽 (5일차 전에는 판별 규칙 없음).
+        // 얼굴은 3일차와 같은 초상. 말은 다른 방문자와 같은 목적지 한 줄 (강00 4일차 대사 원문 없음 — 가정)
+        Visitor ForgedKang(DayConfig day)
+        {
+            var r = _db.FindByName(ResidentDatabase.KangName);
+            string dest = Destinations[0];
+            var v = new Visitor
+            {
+                Story = KangForged, Face = r.Face, Planted = ErrorKind.None,
+                Pass = new TravelPass { Name = r.Name, ResidentId = r.ResidentId, BirthDate = r.BirthDate, Address = r.Address, Photo = r.Face, IssueDate = day.Today, Stamp = Rules.GenuineStamp },
+                Line = $"{dest}에 가야 합니다.",
+            };
+            if (CertDay(day)) v.Cert = new QuarantineCert { Name = r.Name, Result = Rules.NegativeResult, Stamp = Rules.GenuineStamp, TestDate = day.Today };
+            if (PermitDay(day)) { v.SaidDest = dest; v.Permit = new EntryPermit { Name = r.Name, Reason = "가족 합류", Destination = dest }; }
             (v.Correct, v.Reason) = Rules.Judge(v, day, _db);
             return v;
         }

@@ -111,12 +111,18 @@ namespace ProtocolSeoul
             var jin = new Resident { Name = JinName, BirthDate = jb, ResidentId = "220614-3482915", Address = "서울 마포 B-7 블록", Face = new Face(1, 0) };
             jin.Face.Portrait = Portraits.Pick(jb, jin.ResidentId, 0);
             db.Add(jin);
+            // 대본 인물 강00 (56세 남). 4일차에 진00과 같은 방식의 위조 서류로 옴 → DB와 맞음 (1주차 스토리 261122 분기 B·C). 주소는 가정
+            var kang = new Resident { Name = KangName, BirthDate = KangBirth, ResidentId = KangId, Address = "서울 용산 C-3 블록", Face = new Face(2, 2) };
+            kang.Face.Portrait = Portraits.Pick(KangBirth, KangId, 0);
+            db.Add(kang);
             return db;
         }
 
         public const string JinName = "진00", KangName = "강00";
+        public static readonly DateTime KangBirth = new(1993, 11, 2);
+        public const string KangId = "931102-1530271";
 
-        public IEnumerable<Resident> Clean => All.Where(r => r.CriminalRecord == null && r.Name != JinName);
-        public IEnumerable<Resident> Criminals => All.Where(r => r.CriminalRecord != null);
+        public IEnumerable<Resident> Clean => All.Where(r => r.CriminalRecord == null && r.Name != JinName && r.Name != KangName);
+        public IEnumerable<Resident> Criminals => All.Where(r => r.CriminalRecord != null && r.Name != KangName);
     }
 }

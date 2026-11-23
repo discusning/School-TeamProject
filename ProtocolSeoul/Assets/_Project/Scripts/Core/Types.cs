@@ -35,7 +35,8 @@ namespace ProtocolSeoul
     public enum Field { Name, ResidentId, BirthDate, Address, Photo, Stamp, IssueDate, TestDate, TestResult, CriminalRecord, Reason, Destination }
 
     // 칸이 어디에 있는지
-    public enum Source { TravelPass, Quarantine, Database, Booth, EntryPermit }
+    // Log = 대화 로그의 방문자 말풍선 (말한 이름 · 나이 · 목적지, C061)
+    public enum Source { TravelPass, Quarantine, Database, Booth, EntryPermit, Log }
 
     public enum CompareResult { Match, Mismatch, Unrelated }
 
@@ -54,7 +55,8 @@ namespace ProtocolSeoul
 
     public static class Fmt
     {
-        public static string Date(DateTime d) => d.ToString("yyyy.MM.dd");
+        // 지역 설정(달력·구분 기호)과 상관없이 같은 글자 (C060)
+        public static string Date(DateTime d) => d.ToString("yyyy.MM.dd", System.Globalization.CultureInfo.InvariantCulture);
         public static string FieldName(Field f) => f switch
         {
             Field.Name => "이름", Field.ResidentId => "주민번호", Field.BirthDate => "생년월일", Field.Address => "주소",

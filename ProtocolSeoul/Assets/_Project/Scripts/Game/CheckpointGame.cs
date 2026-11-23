@@ -25,13 +25,16 @@ namespace ProtocolSeoul.Game
     public class CheckpointGame : MonoBehaviour
     {
         // Art: 항목 칸 그림 3상태 (0 기본 · 1 선택됨 노랑 · 2 불일치 빨강). 없으면 색으로 표시.
-        class FieldCell { public Source Src; public Field Field; public Image Bg; public Color Normal; public Sprite[] Art; }
+        // Tints: 3상태 색을 따로 쓰는 칸 (대화 로그 말풍선 — 흰 글자가 읽히도록 어두운 색)
+        class FieldCell { public Source Src; public Field Field; public Image Bg; public Color Normal; public Sprite[] Art; public Color[] Tints; }
 
         static readonly Color BadColor = new(1f, 0.55f, 0.45f);
+        static readonly Color[] LogTints = { new(0f, 0f, 0f, 0.55f), new(0.5f, 0.4f, 0.05f, 0.9f), new(0.6f, 0.12f, 0.1f, 0.9f) };
 
         static void Paint(FieldCell c, int state)
         {
             if (c?.Bg == null) return;
+            if (c.Tints != null) { c.Bg.color = c.Tints[state]; return; }
             if (c.Art != null && c.Art[state] != null) { c.Bg.sprite = c.Art[state]; c.Bg.color = Color.white; return; }
             c.Bg.color = state == 0 ? c.Normal : state == 1 ? Ui.Pick : BadColor;
         }
@@ -45,6 +48,8 @@ namespace ProtocolSeoul.Game
             return a[0] == null ? null : a;
         }
         const float PassAspect = 1536f / 1024f, DbAspect = 1598f / 984f;
+        // 통행증 그림(1536×1024)의 제목 글줄 칸 (테두리 안쪽 x 270~1265, 높이는 테두리 가운데 y 90~164) — 그림 기준 비율 (x0, y0, x1, y1)
+        static readonly Vector4 PassTitle = new(270f / 1536f, 1f - 164f / 1024f, 1265f / 1536f, 1f - 90f / 1024f);
 
         List<DayConfig> _days;
         int _dayIndex, _vi, _runTotal;
@@ -90,6 +95,8 @@ namespace ProtocolSeoul.Game
         readonly List<Doc> _docKinds = new();
         static string DocName(Doc d) => d switch { Doc.Pass => "임시 통행증", Doc.Cert => "검역 소견서", _ => "입성 사유서" };
         string _jinChoice; // 강00 이벤트: 진00 처분 (3일차 선택 결과 저장)
+        Verdict? _kangChoice; // 강00 이벤트: 4일차 위조 서류 강00 처분 (분기 B·C)
+        FieldCell _logCell; // 대화 로그의 방문자 말풍선 (검사 모드 비교 칸, C061)
 
         void SetVerdictButtons(bool on) { _passBtn.interactable = _denyBtn.interactable = _killBtn.interactable = on; }
         static string Who(Visitor v) => v.PassMissing ? "(통행증 없음)" : v.Pass.Name;
@@ -111,7 +118,7 @@ namespace ProtocolSeoul.Game
         Resident Record => V.PassMissing ? null : _db.FindByName(V.Pass.Name);
         DayConfig Day => _days[_dayIndex];
         // 주민등록 DB가 있는 날 (1일차 DB 없음 → 2일차 복구, 1주차 스토리 261122)
-        bool DbDay => Day.Has(ErrorKind.NotInDatabase) || Day.Has(ErrorKind.IdDigitMismatch) || Day.Has(ErrorKind.AddressMismatch) || Day.Has(ErrorKind.BirthMismatch);
+        bool DbDay => Day.HasDatabase;
 
         void Awake()
         {
@@ -180,22 +187,27 @@ namespace ProtocolSeoul.Game
         void ShowDayIntro()
         {
             var o = OpenOverlay();
+            // 왼쪽 위 날짜도 안내 화면부터 그날로 (전에는 근무 시작 전까지 전날 날짜가 남음, C060)
+            _header.text = Day.DayLabel;
+            _rule.text = "오늘의 규칙: " + Day.RuleShort;
             var panel = Ui.Box(o, "Panel", 0.25f, 0.2f, 0.75f, 0.8f, Ui.Booth);
-            Ui.Label(panel.transform, "Title", 0.06f, 0.8f, 0.94f, 0.95f, $"{Day.Day}일차 — {Fmt.Date(Day.Today)}", 48, Ui.Light, TextAnchor.MiddleCenter);
+            Ui.Label(panel.transform, "Title", 0.06f, 0.8f, 0.94f, 0.95f, Day.DayLabel, 48, Ui.Light, TextAnchor.MiddleCenter);
             Ui.Shrink(Ui.Label(panel.transform, "Brief", 0.08f, 0.38f, 0.92f, 0.78f, Day.Briefing, 30, Ui.Light, TextAnchor.MiddleCenter), 18);
-            Ui.Label(panel.transform, "Rule", 0.08f, 0.26f, 0.92f, 0.36f, "오늘의 규칙: " + Day.RuleShort, 26, Ui.Pick, TextAnchor.MiddleCenter);
+            Ui.Shrink(Ui.Label(panel.transform, "Rule", 0.08f, 0.26f, 0.92f, 0.36f, "오늘의 규칙: " + Day.RuleShort, 26, Ui.Pick, TextAnchor.MiddleCenter), 16); // 2일차 규칙 글자가 길어짐 (C060)
             Ui.Button(panel.transform, "Start", 0.35f, 0.06f, 0.65f, 0.2f, "근무 시작", Ui.PassGreen, Color.white, 32, StartDay);
         }
 
         void StartDay()
         {
             CloseOverlay();
-            _visitors = new VisitorGenerator(_db, _seed * 31 + Day.Day).GenerateDay(Day);
+            if (_dayIndex == 0) _jinChoice = null;
+            _kangChoice = null;
+            // 4일차 강00은 3일차에 진00을 들여보냈을 때만 옴 (분기 B·C)
+            _visitors = new VisitorGenerator(_db, _seed * 31 + Day.Day) { JinPassed = _jinChoice == "통과" }.GenerateDay(Day);
             _ledger = new DayLedger();
             _vi = 0;
-            _header.text = $"{Day.Day}일차 · {Fmt.Date(Day.Today)}";
+            _header.text = Day.DayLabel;
             _rule.text = "오늘의 규칙: " + Day.RuleShort;
-            if (_dayIndex == 0) _jinChoice = null;
             _termTabs[0].gameObject.SetActive(DbDay); // 1일차: 주민등록 DB 없음 → DB 탭 숨김
             _reportBtn.gameObject.SetActive(Day.Day >= ReportFromDay); // 신고: 1~4일차엔 아예 안 보임
             // 대화 로그에 날짜 줄 없음 (대화로그 PDF 4·6쪽, C051)
@@ -235,6 +247,16 @@ namespace ProtocolSeoul.Game
                 _jinChoice = Name(chosen);
                 Play(_stamp);
                 ShowBand(true, $"선택 기록 — 진00 {Name(chosen)}", "강00 이벤트 선택이 저장됨");
+                SetVerdictButtons(false);
+                _nextBtn.gameObject.SetActive(true);
+                return;
+            }
+            if (V.Story == VisitorGenerator.KangForged)
+            {
+                // 4일차 강00 (분기 B·C): 처분을 선택 결과로 저장. 통과면 그날 밤 자폭 배드 엔딩 (정산 뒤)
+                _kangChoice = chosen;
+                Play(_stamp);
+                ShowBand(true, $"선택 기록 — 강00 {Name(chosen)}", "강00 이벤트 선택이 저장됨");
                 SetVerdictButtons(false);
                 _nextBtn.gameObject.SetActive(true);
                 return;
@@ -285,11 +307,12 @@ namespace ProtocolSeoul.Game
             bool fired = _ledger.Fired;
             Ui.Label(t, "Title", 0.05f, 0.9f, 0.95f, 0.98f, fired ? $"{Day.Day}일차 정산 — 퇴출" : $"{Day.Day}일차 정산", 46, fired ? new Color(1f, 0.5f, 0.45f) : Ui.Light, TextAnchor.MiddleCenter);
             bool hasJin = _ledger.Entries.Any(e => e.Visitor.Story == "jin");
-            float top = hasJin ? 0.8f : 0.86f;
+            bool hasKang = _ledger.Entries.Any(e => e.Visitor.Story == VisitorGenerator.KangForged);
+            float top = hasJin || hasKang ? 0.8f : 0.86f;
             float y = top, step = Mathf.Min(0.07f, (top - 0.36f) / Mathf.Max(1, _ledger.Entries.Count));
             foreach (var e in _ledger.Entries)
             {
-                bool story = e.Visitor.Story == "jin";
+                bool story = DayLedger.IsChoice(e.Visitor);
                 string mark = story ? "●" : e.Correct ? "○" : "×";
                 string why = story ? "선택 기록 (강00 이벤트)" : e.Visitor.Correct == Verdict.Pass ? "문제 없음" : Fmt.ErrorText(e.Visitor.Reason);
                 var col = story || e.Correct ? Ui.Light : new Color(1f, 0.55f, 0.5f);
@@ -299,21 +322,56 @@ namespace ProtocolSeoul.Game
                 Ui.Shrink(Ui.Label(t, "Why", 0.5f, y - step, 0.95f, y, why, 24, col), 14);
                 y -= step;
             }
-            // 강00 이벤트 선택 (원문 선택 1~3). 선택 2·3은 4일차 강00 처분으로 갈림 → 4일차가 없어 저장만 함
+            // 강00 이벤트 선택 (원문 선택 1~3). 선택 2·3은 4일차 강00 처분으로 갈림
             if (hasJin && _jinChoice != null)
             {
                 string pick = _jinChoice == "통과" ? "진00을 들여보냄 (선택 2·3은 4일차에 갈림)" : "선택 1) 강00의 말을 믿고 진00을 거부·반려";
                 Ui.Label(t, "Story", 0.06f, 0.82f, 0.94f, 0.88f, "강00 이벤트 — " + pick, 24, Ui.Pick, TextAnchor.MiddleCenter);
             }
+            if (hasKang && _kangChoice != null)
+            {
+                string pick = _kangChoice == Verdict.Pass ? "선택 2) 진00을 들여보내고, 그 후에 강00을 들여보냄" : "선택 3) 진00을 들여보내고, 강00을 반려/무시";
+                Ui.Shrink(Ui.Label(t, "Story", 0.06f, 0.82f, 0.94f, 0.88f, "강00 이벤트 — " + pick, 24, Ui.Pick, TextAnchor.MiddleCenter), 16);
+            }
+            bool bomb = hasKang && _kangChoice.HasValue && DayLedger.BombEnding(_jinChoice == "통과", _kangChoice.Value);
             Ui.Label(t, "Sum", 0.06f, 0.2f, 0.94f, 0.34f,
                 $"정답 {_ledger.CorrectCount} · 실수 {_ledger.Mistakes} → {_ledger.Stage}\n" +
                 $"배급 +{_ledger.Earned}  벌점 −{_ledger.Penalty}  =  {_ledger.Total}   (누적 {_runTotal})", 28, fired || _ledger.RationStopped ? new Color(1f, 0.55f, 0.5f) : Ui.Pick, TextAnchor.MiddleCenter);
             Ui.Label(t, "Note", 0.06f, 0.13f, 0.94f, 0.2f, "실수 2번까진 경고, 3번부터 식량 감소, 4번부터 식량 미지급, 5번부터 퇴출(배드엔딩)\n※ 배급·벌점 숫자는 임시입니다 (기획 확정 전)", 20, new Color(0.7f, 0.7f, 0.7f), TextAnchor.MiddleCenter);
             bool last = fired || _dayIndex >= _days.Count - 1;
+            // 자폭 배드 엔딩: 4일차 일이 끝난 밤 (정산 뒤). 퇴출이 먼저면 퇴출로 끝남 (가정)
+            if (bomb && !fired)
+            {
+                Ui.Button(t, "Next", 0.35f, 0.03f, 0.65f, 0.12f, "그날 밤 ▶", Ui.DenyRed, Color.white, 30, ShowBombEnding);
+                return;
+            }
             Ui.Button(t, "Next", 0.35f, 0.03f, 0.65f, 0.12f, last ? "처음부터 다시" : "다음 날 ▶", Ui.PassGreen, Color.white, 30, () =>
             {
                 CloseOverlay();
                 if (last) { _dayIndex = 0; _runTotal = 0; } else _dayIndex++;
+                ShowDayIntro();
+            });
+        }
+
+        // [자폭 배드 엔딩] 글은 1주차 스토리 261122 분기 B 원문 그대로. 엔딩 그림·연출은 받으면 넣음 (지금은 글만)
+        bool _bombShown;
+        void ShowBombEnding()
+        {
+            _bombShown = true;
+            var o = OpenOverlay();
+            var panel = Ui.Box(o, "Panel", 0.18f, 0.12f, 0.82f, 0.88f, new Color(0.08f, 0.03f, 0.03f));
+            var t = panel.transform;
+            Ui.Label(t, "Title", 0.05f, 0.82f, 0.95f, 0.95f, "[자폭 배드 엔딩]", 52, new Color(1f, 0.45f, 0.4f), TextAnchor.MiddleCenter);
+            Ui.Shrink(Ui.Label(t, "Night", 0.07f, 0.52f, 0.93f, 0.8f,
+                "(4일차 일이 끝난 밤) 진00을 찾아내 사살함과 동시에, 요새 내부의 핵심 발전 시설이나 가스관에 폭발물을 설치해 대규모 자폭 테러를 일으킴. [심사관 파면 및 배드 엔딩]",
+                28, Ui.Light, TextAnchor.MiddleCenter), 16);
+            Ui.Shrink(Ui.Label(t, "Scenes", 0.07f, 0.22f, 0.93f, 0.5f,
+                "자폭테러로 인해 성벽이 뚫려 아비규환인 요새 내부\n구속복을 입고 끌려가는 주인공\n심사관 파면으로 총살당함",
+                28, Ui.Light, TextAnchor.MiddleCenter), 16);
+            Ui.Button(t, "Restart", 0.35f, 0.04f, 0.65f, 0.15f, "처음부터 다시", Ui.PassGreen, Color.white, 30, () =>
+            {
+                CloseOverlay();
+                _dayIndex = 0; _runTotal = 0;
                 ShowDayIntro();
             });
         }
@@ -328,10 +386,17 @@ namespace ProtocolSeoul.Game
             _pickA = null;
             foreach (var c in _cells.Append(_boothCell)) Paint(c, 0);
             if (_inspectArtOn != null) Ui.SetSprites(_inspectBtn, on ? _inspectArtOn : _inspectArtOff);
-            _inspectBtnText.text = _inspectArtOn != null
-                ? "검사 모드"
-                : "검사 모드 [Space]";
-            _inspectLine.text = on ? "검사 모드 — 서류 칸 하나, DB 칸 하나를 차례로 클릭" : "";
+            if (_inspectBtnText != null) _inspectBtnText.text = "검사 모드 [Space]"; // 그림이 없을 때만 글자 버튼
+            _inspectLine.text = on ? "검사 모드 — 서류 · DB · 대화 로그 칸 두 개를 차례로 클릭" : "";
+        }
+
+        // 안내 줄의 칸 이름. 대화 로그 말풍선은 "대화 로그", 말한 나이 ↔ 생년월일 비교는 "나이"
+        static string CellName(FieldCell c) => c.Src == Source.Log ? "대화 로그" : Fmt.FieldName(c.Field);
+        static string PairName(FieldCell a, FieldCell b)
+        {
+            bool log = a.Src == Source.Log || b.Src == Source.Log;
+            var f = a.Src == Source.Log ? b.Field : a.Field;
+            return log && f == Field.BirthDate ? "나이" : log ? $"말한 {Fmt.FieldName(f)}" : Fmt.FieldName(f);
         }
 
         void OnCellClicked(FieldCell cell)
@@ -345,7 +410,7 @@ namespace ProtocolSeoul.Game
                 foreach (var c in _cells.Append(_boothCell)) Paint(c, 0);
                 _pickA = cell;
                 Paint(cell, 1);
-                _inspectLine.text = $"「{Fmt.FieldName(cell.Field)}」 선택 — 비교할 칸을 하나 더 고르세요";
+                _inspectLine.text = $"「{CellName(cell)}」 선택 — 비교할 칸을 하나 더 고르세요";
                 Play(_tick);
                 return;
             }
@@ -356,18 +421,22 @@ namespace ProtocolSeoul.Game
             switch (result)
             {
                 case CompareResult.Match:
-                    _inspectLine.text = $"[일치] {Fmt.FieldName(cell.Field)}";
+                    _inspectLine.text = $"[일치] {PairName(_pickA, cell)}";
                     _inspectLine.color = new Color(0.55f, 1f, 0.6f);
                     Play(_ding);
                     break;
                 case CompareResult.Mismatch:
-                    _inspectLine.text = $"[불일치] {Fmt.FieldName(cell.Field)} — 두 칸이 다릅니다";
+                    _inspectLine.text = _pickA.Src == Source.Log || cell.Src == Source.Log
+                        ? $"[불일치] {PairName(_pickA, cell)} — 말과 서류가 다릅니다"
+                        : $"[불일치] {PairName(_pickA, cell)} — 두 칸이 다릅니다";
                     _inspectLine.color = new Color(1f, 0.5f, 0.45f);
                     Paint(_pickA, 2); Paint(cell, 2);
                     Play(_buzz);
                     break;
                 default:
-                    _inspectLine.text = "관련 없음 — 같은 종류의 칸끼리만 비교됩니다";
+                    _inspectLine.text = _pickA.Src == Source.Log || cell.Src == Source.Log
+                        ? "관련 없음 — 말한 이름 · 나이 · 목적지 칸과만 비교됩니다"
+                        : "관련 없음 — 같은 종류의 칸끼리만 비교됩니다";
                     _inspectLine.color = Ui.Pick;
                     break;
             }
@@ -430,8 +499,9 @@ namespace ProtocolSeoul.Game
                 _verdictBand = band.gameObject.AddComponent<Image>();
                 _verdictBand.sprite = _bandOk;
                 _verdictBand.raycastTarget = false;
-                _verdictText = Ui.Label(band, "Text", 0.25f, 0.51f, 0.92f, 0.7f, "", 22, Color.white, TextAnchor.MiddleLeft);
-                _verdictWhy = Ui.Label(band, "Why", 0.25f, 0.25f, 0.92f, 0.44f, "", 20, Color.white, TextAnchor.MiddleLeft);
+                // 글줄 칸 (원본 1724×362): 위 칸 x 414~1589 · y 109~178, 아래 칸 x 414~1049 · y 203~272 (C059)
+                _verdictText = Ui.Label(band, "Text", 424f / 1724f, 1f - 178f / 362f, 1579f / 1724f, 1f - 109f / 362f, "", 22, Color.white, TextAnchor.MiddleLeft);
+                _verdictWhy = Ui.Label(band, "Why", 424f / 1724f, 1f - 272f / 362f, 1039f / 1724f, 1f - 203f / 362f, "", 20, Color.white, TextAnchor.MiddleLeft);
                 Ui.Shrink(_verdictText, 12); Ui.Shrink(_verdictWhy, 12);
             }
             else
@@ -456,6 +526,7 @@ namespace ProtocolSeoul.Game
             _inspectLine.raycastTarget = false;
             (_bandOk != null ? _verdictBand.transform.parent : _verdictBand.transform).SetAsLastSibling(); // 띠는 대화창 위에 뜸
             BuildLog(npc);
+            _inspectLine.transform.SetAsLastSibling(); // 대화 로그를 연 채 비교해도 안내 줄이 덮개 위에 보임 (C061)
             logBtn.transform.SetAsLastSibling(); // 로그 덮개 위에도 버튼이 보임. 다시 누르면 닫힘 (PDF 4쪽 수정안 그림에 닫기 버튼 없음 — 가정)
 
             // ② 서류 검토 영역 (우측 상단): 방문자가 낸 작은 서류가 위에서 내려옴 → 클릭하면 확대 (닫기 · Esc)
@@ -518,17 +589,9 @@ namespace ProtocolSeoul.Game
             {
                 var area = Ui.Fit(verdict, "InspectArea", 0.04f, 0.225f, 0.96f, 0.365f, _inspectArtOff[0].rect.width / _inspectArtOff[0].rect.height);
                 _inspectBtn = Ui.SpriteButton(area, "Inspect", 0, 0, 1, 1, "", _inspectArtOff, Ui.Ink, 20, ToggleInspect);
-                _inspectBtnText = _inspectBtn.GetComponentInChildren<Text>();
-                var rt = _inspectBtnText.rectTransform;
-                rt.anchorMin = new Vector2(0.27f, 0.32f); rt.anchorMax = new Vector2(0.71f, 0.66f); rt.offsetMin = rt.offsetMax = Vector2.zero;
-                _inspectBtnText.color = new Color(0.06f, 0.06f, 0.06f);
-                _inspectBtnText.fontSize = 22; _inspectBtnText.fontStyle = FontStyle.Bold; Ui.Shrink(_inspectBtnText, 14);
-                // 클릭 그림은 글줄 칸이 18px(그림 높이 242 중) 아래로 내려감 → 글자도 같은 만큼 내림
-                var follow = _inspectBtn.gameObject.AddComponent<LabelFollowSprite>();
-                follow.Target = _inspectBtn.image; follow.Label = rt;
-                follow.BaseMin = rt.anchorMin; follow.BaseMax = rt.anchorMax;
-                follow.Moved.Add(_inspectArtOff[2]); follow.Moved.Add(_inspectArtOn[2]);
-                follow.Shift = new Vector2(0f, -18f / 242f);
+                // 버튼 위 글자 없음 (메인 기획 요청 261123, C059). 켬·끔은 그림(불빛)으로만 구분
+                DestroyImmediate(_inspectBtn.GetComponentInChildren<Text>().gameObject);
+                _inspectBtnText = null;
                 Ui.Label(verdict, "InspectKey", 0.06f, 0.19f, 0.94f, 0.225f, "[Space] 키로 켜고 끄기", 18, Soon, TextAnchor.MiddleCenter);
             }
             else
@@ -541,9 +604,9 @@ namespace ProtocolSeoul.Game
         }
 
         // 검역 소견서를 보는 날인지 (규칙에 검역 항목이 켜진 날부터 칸이 생김)
-        bool CertDay => Day.Has(ErrorKind.QuarantineMissing) || Day.Has(ErrorKind.QuarantineExpired);
+        bool CertDay => Day.HasCert;
         // 입성 사유서를 보는 날인지 (3일차~, 1주차 스토리 261122)
-        bool PermitDay => Day.Has(ErrorKind.EntryMissing) || Day.Has(ErrorKind.EntryNameMismatch) || Day.Has(ErrorKind.EntryReasonDenied) || Day.Has(ErrorKind.EntryDestMismatch);
+        bool PermitDay => Day.HasPermit;
         static bool IsDocSrc(Source s) => s == Source.TravelPass || s == Source.Quarantine || s == Source.EntryPermit;
         bool Missing(Doc d) => d switch { Doc.Pass => V.PassMissing, Doc.Cert => V.Cert == null, _ => V.Permit == null };
 
@@ -573,8 +636,10 @@ namespace ProtocolSeoul.Game
                 var card = Ui.Button(fit, "Button", 0, 0, 1, 1, "", Color.white, Ui.Ink, 18, () => OpenDoc(k));
                 card.image.sprite = passArt;
                 Destroy(card.GetComponentInChildren<Text>().gameObject);
-                Ui.Label(card.transform, "Title", 0.18f, 0.838f, 0.82f, 0.914f, DocName(Doc.Pass), 16, Ui.Ink, TextAnchor.MiddleCenter);
-                Ui.Label(card.transform, "Hint", 0.08f, 0.02f, 0.5f, 0.17f, "클릭", 16, Ui.Ink * 2.2f, TextAnchor.MiddleLeft);
+                // 제목: 회색 글줄 칸 안 (PassTitle). 칸이 작아 글자 크기를 칸에 맞춰 줄임 (C059)
+                Ui.Shrink(Ui.Label(card.transform, "Title", PassTitle.x, PassTitle.y, PassTitle.z, PassTitle.w, DocName(Doc.Pass), 14, Ui.Ink, TextAnchor.MiddleCenter), 8);
+                // "클릭": 카드 아래 물결선 밑 빈 띠 가운데 (모서리 장식 피함)
+                Ui.Shrink(Ui.Label(card.transform, "Hint", 0.1f, 0.04f, 0.9f, 0.15f, "클릭", 16, Ui.Ink * 2.2f, TextAnchor.MiddleCenter), 8);
                 return area;
             }
             // 통행증 칸은 왼쪽 큰 자리, 나머지 서류는 오른쪽에 나란히 (3장이면 폭을 줄임)
@@ -711,10 +776,17 @@ namespace ProtocolSeoul.Game
             _zoomCo = null;
         }
 
-        // 임시통행증 글줄 5칸. 1일차(DB 없음): 생년월일(나이) 칸 — 말한 나이 대조. 2일차~: 범죄기록 칸 (1주차 스토리 261122)
-        (Field f, string v)[] PassRows(TravelPass p) => DbDay
-            ? new[] { (Field.Name, p.Name), (Field.ResidentId, p.ResidentId), (Field.Address, p.Address), (Field.CriminalRecord, p.CriminalRecord ?? "없음"), (Field.IssueDate, Fmt.Date(p.IssueDate)) }
-            : new[] { (Field.Name, p.Name), (Field.ResidentId, p.ResidentId), (Field.BirthDate, $"{Fmt.Date(p.BirthDate)} ({Portraits.Age(p.BirthDate)}세)"), (Field.Address, p.Address), (Field.IssueDate, Fmt.Date(p.IssueDate)) };
+        // 임시통행증 글줄 (Day.PassFields). 생년월일(나이) 칸은 모든 일차, 범죄기록 칸은 2일차~ (C060)
+        (Field f, string v)[] PassRows(TravelPass p) => Day.PassFields.Select(f => (f, f switch
+        {
+            Field.BirthDate => $"{Fmt.Date(p.BirthDate)} ({Portraits.Age(p.BirthDate)}세)",
+            Field.CriminalRecord => p.CriminalRecord ?? "없음",
+            Field.IssueDate => Fmt.Date(p.IssueDate),
+            Field.Name => p.Name,
+            Field.ResidentId => p.ResidentId,
+            Field.Address => p.Address,
+            _ => "",
+        })).ToArray();
 
         void RebuildDoc()
         {
@@ -732,16 +804,19 @@ namespace ProtocolSeoul.Game
                 var p = V.Pass;
                 var card = Ui.Fit(t, "Card", 0, 0, 1, 0.9f, PassAspect);
                 Ui.Picture(card, "Art", 0, 0, 1, 1, passArt);
-                Ui.Shrink(Ui.Label(card, "Title", 0.18f, 0.838f, 0.82f, 0.914f, "임시 통행증 — 1차 선별소 발급", 22, Ui.Ink, TextAnchor.MiddleCenter), 12);
+                Ui.Shrink(Ui.Label(card, "Title", PassTitle.x, PassTitle.y, PassTitle.z, PassTitle.w, "임시 통행증 — 1차 선별소 발급", 22, Ui.Ink, TextAnchor.MiddleCenter), 12);
                 var photo = MakeCell(card, 0.083f, 0.219f, 0.379f, 0.754f, Source.TravelPass, Field.Photo, null, new Color(1f, 1f, 1f, 0f), Ui.Ink, out _);
                 FaceView.Draw(Ui.Rect(photo.Bg.transform, "Face", 0, 0, 1, 1, 9), p.Photo, new Color(0.8f, 0.8f, 0.78f));
-                // 글줄 칸 가운데 (원본 1024줄 기준 위에서부터): 281 · 370 · 459 · 548 · 640
-                float[] rowY = { 281, 370, 459, 548, 640 };
+                // 글줄 칸 (원본 1536×1024, 테두리 포함): x 636~1414, y 251~313 · 339~402 · 430~491 · 517~580 · 610~672.
+                // 항목 칸 그림을 그림의 글줄 칸과 같은 크기로 겹침 (전에는 칸보다 커서 테두리가 어긋나 보임, C059)
+                // 6번째 줄(2일차~ 범죄기록 + 생년월일, C060)은 5번째 줄 아래 같은 간격 700~762에 항목 칸 그림으로 그림
+                float[,] rowY = { { 251, 313 }, { 339, 402 }, { 430, 491 }, { 517, 580 }, { 610, 672 }, { 700, 762 } };
                 var rows = PassRows(p);
                 for (int r = 0; r < rows.Length; r++)
-                    MakeCell(card, 0.405f, 1f - (rowY[r] + 40f) / 1024f, 0.925f, 1f - (rowY[r] - 40f) / 1024f, Source.TravelPass, rows[r].f, rows[r].v, Ui.Paper, Ui.Ink, out _, DocCellArt);
-                // 도장 자리 (그림 오른쪽 아래): 도장 글자는 코드로 씀 (위조 도장 판정에 글자가 필요)
-                var stamp = MakeCell(card, 0.72f, 0.08f, 0.93f, 0.34f, Source.TravelPass, Field.Stamp, p.Stamp, new Color(1f, 1f, 1f, 0f), new Color(0.7f, 0.12f, 0.1f), out var stv);
+                    MakeCell(card, 636f / 1536f, 1f - rowY[r, 1] / 1024f, 1414f / 1536f, 1f - rowY[r, 0] / 1024f, Source.TravelPass, rows[r].f, rows[r].v, Ui.Paper, Ui.Ink, out _, DocCellArt);
+                // 도장 자리 (그림 오른쪽 아래): 도장 글자는 코드로 씀 (위조 도장 판정에 글자가 필요). 6줄이면 6번째 줄 아래로 내림
+                bool six = rows.Length > 5;
+                var stamp = MakeCell(card, six ? 0.73f : 0.72f, six ? 0.035f : 0.08f, six ? 0.92f : 0.93f, six ? 0.245f : 0.34f, Source.TravelPass, Field.Stamp, p.Stamp, new Color(1f, 1f, 1f, 0f), new Color(0.7f, 0.12f, 0.1f), out var stv);
                 var ring = Ui.Circle(stamp.Bg.transform, "Ring", 0.12f, 0.02f, 0.88f, 0.98f, new Color(0.7f, 0.12f, 0.1f, 0.16f));
                 ring.raycastTarget = false;
                 ring.transform.SetAsFirstSibling();
@@ -759,8 +834,9 @@ namespace ProtocolSeoul.Game
                 FaceView.Draw(Ui.Rect(photo.Bg.transform, "Face", 0, 0, 1, 1, 4), p.Photo, new Color(0.8f, 0.8f, 0.78f));
                 var rows = PassRows(p);
                 for (int r = 0; r < 4; r++) DocRow(t, 0.27f, 0.86f - r * 0.12f, Source.TravelPass, rows[r].f, rows[r].v);
-                DocRow(t, 0.03f, 0.36f, Source.TravelPass, rows[4].f, rows[4].v);
-                MakeCell(t, 0.03f, 0.04f, 0.6f, 0.22f, Source.TravelPass, Field.Stamp, p.Stamp, Ui.Solid(Ui.Paper * 0.95f), new Color(0.7f, 0.12f, 0.1f), out var st);
+                for (int r = 4; r < rows.Length; r++) DocRow(t, 0.03f, 0.36f - (r - 4) * 0.12f, Source.TravelPass, rows[r].f, rows[r].v);
+                bool six = rows.Length > 5;
+                MakeCell(t, 0.03f, six ? 0.01f : 0.04f, 0.6f, six ? 0.12f : 0.22f, Source.TravelPass, Field.Stamp, p.Stamp, Ui.Solid(Ui.Paper * 0.95f), new Color(0.7f, 0.12f, 0.1f), out var st);
                 st.fontSize = 28;
             }
             else if (kind == Doc.Permit)
@@ -861,7 +937,9 @@ namespace ProtocolSeoul.Game
             var crimeArt = Ui.Art(!crimeOn ? "crime_locked" : hasCrime ? "crime_record" : "crime_none", 20);
             var crime = MakeCell(scr, 0.041f, 0.148f, 0.959f, 0.299f, Source.Database, Field.CriminalRecord,
                 crimeOn ? r.CriminalRecord ?? "없음" : "(권한 없음 — 아직 복구되지 않은 서버)", Ui.Terminal * 2.2f,
-                hasCrime ? new Color(1f, 0.5f, 0.45f) : Ui.TermText, out _);
+                hasCrime ? new Color(1f, 0.5f, 0.45f) : Ui.TermText, out var crimeValue);
+            // 이름·값 글자 크기를 같게 (전에는 값 26 · 이름 21로 기준선이 어긋나 보임, C059)
+            crimeValue.fontSize = crimeValue.resizeTextMaxSize = 21;
             if (crimeArt != null)
             {
                 Ui.Sliced(crime.Bg, crimeArt);
@@ -895,8 +973,9 @@ namespace ProtocolSeoul.Game
             if (Day.Has(ErrorKind.QuarantineExpired)) sb.AppendLine($"■ 검역 소견서 검사일: 오늘 기준 {Rules.QuarantineValidDays}일 이내");
             if (Day.Has(ErrorKind.CriminalRecord)) sb.AppendLine("■ DB에 범죄 이력이 있으면 거부");
             Ui.Shrink(Ui.Label(t, "Rules", 0.03f, 0.25f, 0.97f, 0.98f, sb.ToString().TrimEnd(), 22, Ui.TermText, TextAnchor.UpperLeft), 12);
-            Ui.Label(t, "Forge", 0.03f, 0.13f, 0.97f, 0.24f, "■ 위조 서류 판별 예시 (준비 중)", 20, Ui.TermText * 0.6f, TextAnchor.MiddleLeft);
-            Ui.Label(t, "Quar", 0.03f, 0.02f, 0.97f, 0.13f, "■ 검역 소견서 판독 기준 (준비 중)", 20, Ui.TermText * 0.6f, TextAnchor.MiddleLeft);
+            // 그날 나오는 자료만 (C060): 위조 판별은 5일차~, 검역 소견서는 2일차~
+            if (Day.HasForgery) Ui.Label(t, "Forge", 0.03f, 0.13f, 0.97f, 0.24f, "■ 위조 서류 판별 예시 (준비 중)", 20, Ui.TermText * 0.6f, TextAnchor.MiddleLeft);
+            if (CertDay) Ui.Label(t, "Quar", 0.03f, 0.02f, 0.97f, 0.13f, "■ 검역 소견서 판독 기준 (준비 중)", 20, Ui.TermText * 0.6f, TextAnchor.MiddleLeft);
         }
 
         void TermRow(Transform t, float x0, float yTop, Field f, string value) =>
@@ -916,8 +995,9 @@ namespace ProtocolSeoul.Game
             if (value != null)
             {
                 float split = art != null ? 0.235f : 0.3f; // 그림의 칸 나눔 선 위치
-                var nameText = Ui.Label(b.transform, "Name", 0.02f, 0, split, 1, Fmt.FieldName(f), 21, Ui.Solid(Color.Lerp(fg, bg, 0.35f)), art != null ? TextAnchor.MiddleCenter : TextAnchor.MiddleLeft, 4);
-                valueText = Ui.Label(b.transform, "Value", split + 0.01f, 0, 0.98f, 1, value, 26, fg, TextAnchor.MiddleLeft, 4);
+                // 서류 칸 그림은 통행증 글줄 칸 높이에 맞춰 낮아져 글자 여백을 줄임 (C059). DB 칸은 그대로
+                var nameText = Ui.Label(b.transform, "Name", 0.02f, 0, split, 1, Fmt.FieldName(f), 21, Ui.Solid(Color.Lerp(fg, bg, 0.35f)), art != null ? TextAnchor.MiddleCenter : TextAnchor.MiddleLeft, art != null && src != Source.Database ? 1 : 4);
+                valueText = Ui.Label(b.transform, "Value", split + 0.01f, 0, 0.98f, 1, value, 26, fg, TextAnchor.MiddleLeft, art != null && src != Source.Database ? 1 : 4);
                 Ui.Shrink(nameText, 10); Ui.Shrink(valueText, 10);
             }
             if (src != Source.Booth) _cells.Add(cell);
@@ -972,8 +1052,19 @@ namespace ProtocolSeoul.Game
             var align = right ? TextAnchor.UpperRight : TextAnchor.UpperLeft;
             var whoText = Ui.Label(row, "Who", 0, 0, 1, 1, who, 26, Color.white, align);
             whoText.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.9f);
-            var bubble = Ui.Box(row, "Bubble", 0, 0, 1, 1, new Color(0f, 0f, 0f, 0.55f));
+            var bubble = Ui.Box(row, "Bubble", 0, 0, 1, 1, LogTints[0]);
             bubble.raycastTarget = false;
+            if (!right)
+            {
+                // 방문자 말풍선 = 검사 모드 비교 칸 (C061). 서류·DB 칸과 고르면 말한 이름 · 나이 · 목적지와 비교
+                var cell = new FieldCell { Src = Source.Log, Field = Field.Name, Bg = bubble, Normal = LogTints[0], Tints = LogTints };
+                bubble.raycastTarget = true;
+                var btn = bubble.gameObject.AddComponent<Button>();
+                btn.transition = Selectable.Transition.None;
+                btn.onClick.AddListener(() => OnCellClicked(cell));
+                _cells.Add(cell);
+                _logCell = cell;
+            }
             var bv = bubble.gameObject.AddComponent<VerticalLayoutGroup>();
             bv.childControlWidth = bv.childControlHeight = true;
             bv.childForceExpandWidth = true; bv.childForceExpandHeight = false;
@@ -993,6 +1084,8 @@ namespace ProtocolSeoul.Game
 
         void ClearLog()
         {
+            _cells.RemoveAll(c => c.Src == Source.Log);
+            _logCell = null;
             for (int i = _logContent.childCount - 1; i >= 0; i--) DestroyImmediate(_logContent.GetChild(i).gameObject);
         }
 
@@ -1075,6 +1168,7 @@ namespace ProtocolSeoul.Game
                 yield return new WaitForEndOfFrame();
                 ScreenCapture.CaptureScreenshot(Path.Combine(dir, $"{++n:00}_{name}.png"));
                 log.AppendLine("shot " + name);
+                log.AppendLine("  C059 " + OverflowLog());
                 yield return null;
             }
             // 오류 종류에 맞는 서류를 펼침 (사유서 오류 → 입성 사유서, 검역 오류 → 검역 소견서, 나머지 → 임시 통행증)
@@ -1124,7 +1218,27 @@ namespace ProtocolSeoul.Game
                     .Where(b => b.gameObject.activeInHierarchy)
                     .OrderByDescending(b => b.transform.position.y)
                     .Select(b => b.GetComponentInChildren<Text>().text.Replace("\n", " "));
-                log.AppendLine($"  C057 {day} 판정 버튼 {string.Join(" > ", btns)} / 신고 보임 {_reportBtn.gameObject.activeInHierarchy} / 검사 모드 글자 \"{_inspectBtnText.text}\"");
+                log.AppendLine($"  C057 {day} 판정 버튼 {string.Join(" > ", btns)} / 신고 보임 {_reportBtn.gameObject.activeInHierarchy} / 검사 모드 버튼 글자 수 {InspectTextCount()}");
+            }
+            // C060: 방문자마다 나온 자료 종류 · 통행증 글줄 · 왼쪽 위 날짜와 발급일. 그날 첫 정상 발급 통행증은 확대 캡처 + 매뉴얼 캡처
+            var c060Shot = new HashSet<string>();
+            IEnumerator C060(string day)
+            {
+                string rows = V.PassMissing ? "(안 냄)" : string.Join(",", PassRows(V.Pass).Select(r => Fmt.FieldName(r.f)));
+                string issue = V.PassMissing ? "-" : Fmt.Date(V.Pass.IssueDate);
+                log.AppendLine($"  C060 {day} 왼쪽 위 \"{_header.text}\" 자료 [{string.Join(",", _docKinds.Select(DocName))}] DB탭 {_termTabs[0].gameObject.activeSelf} 통행증 글줄 [{rows}] 발급일 {issue} 같음 {(V.PassMissing ? "-" : _header.text.EndsWith("-" + issue).ToString())} (오류 {V.Reason})");
+                if (V.PassMissing || V.Reason == ErrorKind.PassDateWrong || !c060Shot.Add(day)) yield break;
+                yield return new WaitForSeconds(DropTime + DropStagger * 2);
+                OpenDoc(_docKinds.IndexOf(Doc.Pass));
+                yield return new WaitForSeconds(ZoomTime + 0.05f);
+                yield return Shot($"c060_{day}_pass");
+                CloseDoc();
+                int tab = _termTab;
+                _termTab = 1; RebuildTerminal();
+                var manual = _termContent.GetComponentsInChildren<Text>().Select(x => x.text.Replace("\n", " / "));
+                log.AppendLine($"  C060 {day} 매뉴얼: {string.Join(" | ", manual)}");
+                yield return Shot($"c060_{day}_manual");
+                _termTab = tab; RebuildTerminal();
             }
 
             yield return new WaitForSeconds(0.8f);
@@ -1145,7 +1259,7 @@ namespace ProtocolSeoul.Game
             // C046: 검사 모드 버튼 끔↔켬·클릭 상태에서 글자가 그림의 글줄 칸과 같이 움직이는지
             {
                 var ped = new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left };
-                string BtnLog() => $"그림 {_inspectBtn.image.overrideSprite?.name}, 글자 칸 y {_inspectBtnText.rectTransform.anchorMin.y:0.000}~{_inspectBtnText.rectTransform.anchorMax.y:0.000}, 글자 \"{_inspectBtnText.text}\"";
+                string BtnLog() => $"C059 그림 {_inspectBtn.image.overrideSprite?.name}, 켬 {_inspect}, 버튼 위 글자 수 {InspectTextCount()}";
                 yield return Shot("c046_inspect_off");
                 log.AppendLine($"  C046 끔 기본: {BtnLog()}");
                 _inspectBtn.OnPointerEnter(ped); _inspectBtn.OnPointerDown(ped);
@@ -1220,6 +1334,7 @@ namespace ProtocolSeoul.Game
                     log.AppendLine($"  초상 {PortraitLog(Record)}");
                 }
                 log.AppendLine($"D1 {Who(V)} 말 \"{V.Line}\" 심은 오류 {V.Planted} → 정답 {V.Correct} ({V.Reason})");
+                yield return C060("d1");
                 if (V.Reason != ErrorKind.None && seen.Add(V.Reason)) yield return ReasonShots("d1");
                 else Decide(V.Correct);
                 Next();
@@ -1244,6 +1359,7 @@ namespace ProtocolSeoul.Game
             while (_overlay == null)
             {
                 log.AppendLine($"D2 {Who(V)} {V.Pass.Address} 심은 오류 {V.Planted} → 정답 {V.Correct} ({V.Reason})");
+                yield return C060("d2");
                 if (!V.PassMissing && !shotCrime && V.Pass.CriminalRecord != null)
                 {
                     yield return new WaitForSeconds(DropTime);
@@ -1273,6 +1389,7 @@ namespace ProtocolSeoul.Game
             while (_overlay == null)
             {
                 log.AppendLine($"D3 {Who(V)} 말 \"{V.Line}\" 사유서 {V.Permit?.Name}/{V.Permit?.Reason}/{V.Permit?.Destination} 심은 오류 {V.Planted} → 정답 {V.Correct} ({V.Reason})");
+                yield return C060("d3");
                 if (V.Story == "kang")
                 {
                     yield return new WaitForSeconds(DropTime + DropStagger * 2);
@@ -1317,6 +1434,86 @@ namespace ProtocolSeoul.Game
             yield return Shot("day3_settlement"); // 강00 이벤트 선택 줄
             log.AppendLine($"  강00 이벤트 선택 {_jinChoice}");
 
+            // C061 분기 A: 3일차 진00 거부 → 4일차 강00 오지 않음
+            CloseOverlay(); _dayIndex = 3; ShowDayIntro();
+            yield return Shot("c061_day4_intro");
+            StartDay();
+            log.AppendLine($"  C061 분기 A (진00 {_jinChoice}) 4일차 방문자 {_visitors.Count}명, 강00 있음 {_visitors.Any(x => x.Story == VisitorGenerator.KangForged)}");
+            while (_overlay == null)
+            {
+                log.AppendLine($"D4A {Who(V)} 말 \"{V.Line}\" 심은 오류 {V.Planted} → 정답 {V.Correct} ({V.Reason})");
+                Decide(V.Correct); Next(); yield return null;
+            }
+            yield return Shot("c061_day4_branchA_settlement");
+            log.AppendLine($"  C061 분기 A 정산 버튼 \"{OverlayButtons()}\"");
+
+            // C061 분기 B · C: 3일차 진00 통과 → 4일차 강00 통과(B, 자폭 배드 엔딩) / 거부(C)
+            foreach (var (branch, kangPick) in new[] { ("B", Verdict.Pass), ("C", Verdict.Deny) })
+            {
+                CloseOverlay(); _dayIndex = 2; StartDay();
+                while (_overlay == null) { Decide(V.Story == "jin" ? Verdict.Pass : V.Correct); Next(); yield return null; }
+                log.AppendLine($"  C061 분기 {branch} 3일차 진00 선택 {_jinChoice}");
+                CloseOverlay(); _dayIndex = 3; StartDay();
+                log.AppendLine($"  C061 분기 {branch} 4일차 방문자 {_visitors.Count}명, 강00 있음 {_visitors.Any(x => x.Story == VisitorGenerator.KangForged)}");
+                while (_overlay == null)
+                {
+                    if (V.Story == VisitorGenerator.KangForged)
+                    {
+                        yield return new WaitForSeconds(DropTime + DropStagger * 2);
+                        if (branch == "B")
+                        {
+                            OpenDoc(_docKinds.IndexOf(Doc.Pass));
+                            yield return new WaitForSeconds(ZoomTime + 0.05f);
+                            yield return Shot("c061_d4_kang_pass_doc"); // 위조 서류 (겉으로는 완벽)
+                            CloseDoc();
+                        }
+                        Decide(kangPick);
+                        yield return Shot($"c061_d4_kang_{branch}_choice");
+                        log.AppendLine($"  C061 분기 {branch} 4일차 강00 {Who(V)} 정답(규칙상) {V.Correct} ({V.Reason}) → 처분 {kangPick}, 실수 수 {_ledger.Mistakes}");
+                    }
+                    else Decide(V.Correct);
+                    Next(); yield return null;
+                }
+                yield return Shot($"c061_day4_branch{branch}_settlement");
+                _bombShown = false;
+                string btn = OverlayButtons();
+                _overlay.GetComponentsInChildren<Button>().First(b => b.name == "Next").onClick.Invoke();
+                yield return null;
+                yield return Shot($"c061_branch{branch}_after_settlement");
+                log.AppendLine($"  C061 분기 {branch} 정산 버튼 \"{btn}\" → 누른 뒤 자폭 배드 엔딩 {_bombShown}, 화면 \"{OverlayTexts()}\"");
+            }
+
+            // C061: 검사 모드에서 대화 로그 말풍선 ↔ 서류 칸 비교 (일치 · 불일치). 방문자를 그 오류로 바꿔 촬영
+            foreach (var (di, k, src, f, tag) in new[]
+            {
+                (0, ErrorKind.None, Source.TravelPass, Field.Name, "d1_name_match"),
+                (0, ErrorKind.SpokenNameMismatch, Source.TravelPass, Field.Name, "d1_name_mismatch"),
+                (0, ErrorKind.None, Source.TravelPass, Field.BirthDate, "d1_age_match"),
+                (0, ErrorKind.AgeMismatch, Source.TravelPass, Field.BirthDate, "d1_age_mismatch"),
+                (2, ErrorKind.None, Source.EntryPermit, Field.Destination, "d3_dest_match"),
+                (2, ErrorKind.EntryDestMismatch, Source.EntryPermit, Field.Destination, "d3_dest_mismatch"),
+                (2, ErrorKind.None, Source.EntryPermit, Field.Reason, "d3_reason_unrelated"),
+            })
+            {
+                CloseOverlay(); _dayIndex = di; StartDay();
+                _visitors[0] = new VisitorGenerator(_db, 1061 + (int)k).Generate(Day, k);
+                ShowVisitor();
+                yield return new WaitForSeconds(DropTime + DropStagger * 2);
+                OpenDoc(_docKinds.IndexOf(src == Source.EntryPermit ? Doc.Permit : Doc.Pass));
+                yield return new WaitForSeconds(ZoomTime + 0.05f);
+                SetLog(true);
+                SetInspect(true);
+                ExecuteEvents.Execute(_logCell.Bg.gameObject, new PointerEventData(EventSystem.current), ExecuteEvents.pointerClickHandler);
+                string first = _inspectLine.text;
+                var target = _cells.First(c => c.Src == src && c.Field == f);
+                ExecuteEvents.Execute(target.Bg.gameObject, new PointerEventData(EventSystem.current), ExecuteEvents.pointerClickHandler);
+                yield return Shot($"c061_{tag}");
+                log.AppendLine($"  C061 {tag}: 말 \"{V.Line}\" → 첫 클릭 \"{first}\" → {src}.{f} \"{Inspector.Value(V, Record, src, f)}\" → \"{_inspectLine.text}\" (정답 {V.Correct} {V.Reason})");
+                SetInspect(false);
+                SetLog(false);
+                CloseDoc();
+            }
+
             // seed에서 안 나온 오류 장면: 첫 방문자를 그 오류로 바꿔 촬영
             foreach (var (di, k) in new[] { (0, ErrorKind.NotSeoul), (0, ErrorKind.PassMissing), (1, ErrorKind.PassDateWrong), (2, ErrorKind.EntryMissing), (2, ErrorKind.EntryReasonDenied) })
             {
@@ -1360,6 +1557,29 @@ namespace ProtocolSeoul.Game
         {
             var e = Portraits.Get(r.Face.Portrait);
             return $"{r.Name} {r.ResidentId} 나이 {Portraits.Age(r.BirthDate)} {(Portraits.IsMale(r.ResidentId) ? "남" : "여")} → p{e.Id:00} \"{e.Caption}\"";
+        }
+
+        // 겹쳐 띄운 창의 버튼 글자 · 모든 글자 (C061 확인용)
+        string OverlayButtons() => _overlay == null ? "" : string.Join(", ", _overlay.GetComponentsInChildren<Button>().Select(b => b.GetComponentInChildren<Text>()?.text));
+        string OverlayTexts() => _overlay == null ? "" : string.Join(" / ", _overlay.GetComponentsInChildren<Text>().Select(x => x.text.Replace("\n", " ")).Take(4));
+
+        // 검사 모드 버튼 위 글자(비어 있지 않은 Text) 개수 (C059 확인용)
+        int InspectTextCount() => _inspectBtn.GetComponentsInChildren<Text>(true).Count(x => !string.IsNullOrEmpty(x.text));
+
+        // 칸을 벗어난 글자 (C059 확인용): 글자 크기를 줄이지 않는 글자 중 실제 글자 높이·폭이 글자 칸보다 큰 것
+        string OverflowLog()
+        {
+            var bad = new List<string>();
+            foreach (var t in _canvas.GetComponentsInChildren<Text>())
+            {
+                if (string.IsNullOrEmpty(t.text) || t.resizeTextForBestFit) continue;
+                var r = t.rectTransform.rect;
+                float h = t.preferredHeight;
+                float w = t.horizontalOverflow == HorizontalWrapMode.Overflow ? t.preferredWidth : 0f;
+                if (h > r.height + 2f || w > r.width + 2f)
+                    bad.Add($"{t.transform.parent.name}/{t.name} \"{t.text.Replace("\n", " ")}\" {h:0}>{r.height:0}");
+            }
+            return bad.Count == 0 ? "칸 넘친 글자 0" : $"칸 넘친 글자 {bad.Count}: " + string.Join(" | ", bad);
         }
 
         static string ArgStr(string key)
