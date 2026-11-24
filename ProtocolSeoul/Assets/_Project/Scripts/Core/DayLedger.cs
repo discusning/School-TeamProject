@@ -33,9 +33,14 @@ namespace ProtocolSeoul
         public const int RationCutAt = 3, RationStopAt = 4, FiredAt = 5;
         public bool Fired => Mistakes >= FiredAt;
         public bool RationStopped => Mistakes >= RationStopAt;
-        public int Total => RationStopped ? 0 : Earned - Penalty;
+        // 강00의 사례 (분기 A, 원문 "물질적인 감사"): 그날 배급에 더함. 숫자는 가정 (배급 숫자 자체가 임시)
+        public const int KangThanksBonus = 10;
+        public int Bonus;
+        public int Total => (RationStopped ? 0 : Earned - Penalty) + Bonus;
         // 자폭 배드 엔딩 (1주차 스토리 261122 분기 B): 3일차 진00 통과 → 4일차 강00 통과. 4일차 일이 끝난 밤에 일어남
         public static bool BombEnding(bool jinPassed, Verdict kangChoice) => jinPassed && kangChoice == Verdict.Pass;
+        // 강00의 자살 (분기 C): 3일차 진00 통과 → 4일차 강00 반려/무시 (통과 말고 모두)
+        public static bool KangSuicide(bool jinPassed, Verdict kangChoice) => jinPassed && kangChoice != Verdict.Pass;
 
         public string Stage => Mistakes >= FiredAt ? "퇴출 (배드엔딩)" : Mistakes >= RationStopAt ? "식량 미지급" : Mistakes >= RationCutAt ? "식량 감소" : Mistakes > 0 ? "경고" : "실수 없음";
     }

@@ -2,7 +2,7 @@ using System;
 
 namespace ProtocolSeoul
 {
-    // 판정. 신고(Report)는 5일차부터라 자리만 있음. 제거(Kill, 화면 글자 "제거")는 1일차부터 (1주차 스토리 261122).
+    // 판정. 신고(Report)는 5일차부터 (문서위조는 범죄 → 신고, 1주차 스토리 261122 5일차). 제거(Kill, 화면 글자 "제거")는 1일차부터 (1주차 스토리 261122).
     public enum Verdict { Pass, Deny, Report, Kill }
 
     // 심을 수 있는 오류 = 그날 켜진 규칙. 보고서 8장 "오류 종류" 그대로.
@@ -29,6 +29,7 @@ namespace ProtocolSeoul
         EntryNameMismatch,  // 사유서 이름 ≠ DB
         EntryReasonDenied,  // 허용되지 않는 입성 사유
         EntryDestMismatch,  // 사유서 목적지 ≠ 말한 목적지 (대화 로그)
+        CertStampForged,    // 검역소견서 도장 위조 (모양이 다르거나 없음, 5일차~ → 신고)
     }
 
     // 화면에서 고를 수 있는 칸. 서류 칸과 DB 칸에 같은 종류가 붙어 있어야 비교됨 (보고서 9-6).
@@ -71,6 +72,7 @@ namespace ProtocolSeoul
             ErrorKind.BirthMismatch => "생년월일이 DB와 다름",
             ErrorKind.AddressMismatch => "주소가 DB와 다름",
             ErrorKind.ForgedStamp => "선별소 도장이 위조됨",
+            ErrorKind.CertStampForged => "검역소견서 도장이 위조됨",
             ErrorKind.OutsiderAppearance => "얼굴에 이상한 부분이 있음 (외부인)",
             ErrorKind.CriminalRecord => "범죄 이력이 있음",
             ErrorKind.QuarantineMissing => "검역 소견서가 없음",

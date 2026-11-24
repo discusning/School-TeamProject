@@ -29,7 +29,7 @@ namespace ProtocolSeoul.Tests
         public void CleanVisitor_IsPass_OnEveryDay()
         {
             var db = Db();
-            for (int d = 1; d <= 3; d++)
+            for (int d = 1; d <= 5; d++)
             {
                 var gen = new VisitorGenerator(db, seed: d);
                 for (int i = 0; i < 30; i++)
@@ -46,14 +46,14 @@ namespace ProtocolSeoul.Tests
         {
             var db = Db();
             var gen = new VisitorGenerator(db, seed: 7);
-            for (int d = 1; d <= 3; d++)
+            for (int d = 1; d <= 5; d++)
             {
                 var day = Day(d);
                 foreach (var kind in day.Rules)
                     for (int i = 0; i < 20; i++)
                     {
                         var v = gen.Generate(day, kind);
-                        var want = kind == ErrorKind.OutsiderAppearance ? Verdict.Kill : Verdict.Deny;
+                        var want = kind == ErrorKind.OutsiderAppearance ? Verdict.Kill : kind is ErrorKind.ForgedStamp or ErrorKind.CertStampForged ? Verdict.Report : Verdict.Deny; // 5일차 위조 도장 → 신고
                         Assert.AreEqual(want, v.Correct, $"{d}일차 {kind} 방문자 판정이 {v.Correct}");
                         Assert.AreEqual(kind, v.Reason, $"{d}일차 {kind}를 심었는데 이유가 {v.Reason}");
                     }
@@ -160,14 +160,14 @@ namespace ProtocolSeoul.Tests
         public void DocsPerDay_MatchC058Table()
         {
             var db = Db();
-            var want = new[] { (db: false, cert: false, permit: false), (db: true, cert: true, permit: false), (db: true, cert: true, permit: true), (db: true, cert: true, permit: true) };
+            var want = new[] { (db: false, cert: false, permit: false), (db: true, cert: true, permit: false), (db: true, cert: true, permit: true), (db: true, cert: true, permit: true), (db: true, cert: true, permit: true) };
             foreach (var day in DayConfig.Defaults())
             {
                 var w = want[day.Day - 1];
                 Assert.AreEqual(w.db, day.HasDatabase, $"{day.Day}일차 DB");
                 Assert.AreEqual(w.cert, day.HasCert, $"{day.Day}일차 검역 소견서");
                 Assert.AreEqual(w.permit, day.HasPermit, $"{day.Day}일차 입성 사유서");
-                Assert.IsFalse(day.HasForgery, $"{day.Day}일차 위조 판별");
+                Assert.AreEqual(day.Day == 5, day.HasForgery, $"{day.Day}일차 위조 판별"); // 5일차~ (스토리 261122)
                 foreach (var v in new VisitorGenerator(db, 8).GenerateDay(day).Where(x => x.Story == null))
                 {
                     if (!w.cert) Assert.IsNull(v.Cert, $"{day.Day}일차에 검역 소견서가 나옴");
@@ -315,6 +315,63 @@ namespace ProtocolSeoul.Tests
             var v = new VisitorGenerator(db, 9).Generate(Day(1), ErrorKind.None);
             Assert.AreEqual(v.Face, v.Pass.Photo);
             Assert.AreEqual(db.FindByName(v.Pass.Name).Face, v.Pass.Photo);
+        }
+
+        // C049: 5일차 = 4일차 확인 항목(DB 대조 포함) + 위조문서 판별. 선별소 도장 · 검역소견서 도장이 모양이 다르거나 없으면 신고. 1~4일차엔 도장 판정 없음
+        [Test]
+        public void Day5_ForgedStamps_AreReported()
+        {
+            var db = Db();
+            CollectionAssert.IsSubsetOf(Day(4).Rules, Day(5).Rules);
+            Assert.AreEqual("2050-03-05", Day(5).Date);
+            var gen = new VisitorGenerator(db, 49);
+            foreach (var stamp in new[] { "", Rules.ForgedStamps[0], Rules.ForgedStamps[3] })
+            {
+                var v = gen.Generate(Day(5), ErrorKind.None);
+                v.Pass.Stamp = stamp;
+                Assert.AreEqual((Verdict.Report, ErrorKind.ForgedStamp), Rules.Judge(v, Day(5), db), $"통행증 도장 \"{stamp}\"");
+                v.Pass.IssueDate = Day(4).Today; // 4일차 날짜로 바꿔 날짜 판정을 피함
+                Assert.AreEqual(Verdict.Pass, Rules.Judge(v, Day(4), db).verdict, "4일차엔 도장 판정 없음");
+                var c = gen.Generate(Day(5), ErrorKind.None);
+                c.Cert.Stamp = stamp;
+                Assert.AreEqual((Verdict.Report, ErrorKind.CertStampForged), Rules.Judge(c, Day(5), db), $"소견서 도장 \"{stamp}\"");
+            }
+            // 5일차 DB 대조 (주민번호 · 이름 · 주소)
+            foreach (var k in new[] { ErrorKind.NotInDatabase, ErrorKind.IdDigitMismatch, ErrorKind.AddressMismatch })
+            {
+                var v = gen.Generate(Day(5), k);
+                Assert.AreEqual((Verdict.Deny, k), (v.Correct, v.Reason));
+            }
+            // 여러 번 심으면 모양 다른 도장 · 도장 없음 둘 다 나옴
+            var stamps = Enumerable.Range(0, 60).Select(_ => gen.Generate(Day(5), ErrorKind.ForgedStamp).Pass.Stamp).ToList();
+            Assert.IsTrue(stamps.Contains(""));
+            Assert.IsTrue(stamps.Any(s => s != "" && s != Rules.GenuineStamp));
+        }
+
+        // C049: 4일차 분기 A = 진00 거부 → 강00의 사례 (서류 없음, 장부에 안 넣음). 분기 C = 진00 통과 + 강00 반려 → 강00의 자살
+        [Test]
+        public void Day4_BranchA_KangThanks_BranchC_Suicide()
+        {
+            var db = Db();
+            for (int seed = 0; seed < 10; seed++)
+            {
+                var a = new VisitorGenerator(db, seed) { JinDenied = true }.GenerateDay(Day(4));
+                var thanks = a.Single(v => v.Story == VisitorGenerator.KangThanks);
+                Assert.IsFalse(a.Any(v => v.Story == VisitorGenerator.KangForged));
+                Assert.IsTrue(thanks.PassMissing);
+                Assert.IsNull(thanks.Cert);
+                Assert.IsNull(thanks.Permit);
+                Assert.AreEqual(VisitorGenerator.KangThanksLine, thanks.Line);
+                Assert.AreEqual(Day(4).VisitorCount + 1, a.Count);
+                // 진00 처분이 없으면(3일차를 안 거침) 강00 안 옴
+                Assert.IsFalse(new VisitorGenerator(db, seed).GenerateDay(Day(4)).Any(v => v.Story != null));
+            }
+            var ledger = new DayLedger { Bonus = DayLedger.KangThanksBonus };
+            Assert.AreEqual(DayLedger.KangThanksBonus, ledger.Total);
+            Assert.IsTrue(DayLedger.KangSuicide(true, Verdict.Deny));
+            Assert.IsTrue(DayLedger.KangSuicide(true, Verdict.Kill));
+            Assert.IsFalse(DayLedger.KangSuicide(true, Verdict.Pass));
+            Assert.IsFalse(DayLedger.KangSuicide(false, Verdict.Deny));
         }
 
         [Test]

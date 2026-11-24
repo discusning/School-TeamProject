@@ -23,12 +23,15 @@ namespace ProtocolSeoul
         public static Face Normal(Face f) { f.EyeOffset = 0; f.Neck = 0; return f; }
 
         // 정답 판정 + 이유. 켜진 규칙만 본다. 여러 개 걸리면 먼저 걸린 것 하나를 이유로 씀.
-        // 1주차 스토리 261122 "일차별 확인 항목과 판정": 얼굴 이상 → 사살, 나머지 → 거부. 신고는 5일차 (아직 없음).
+        // 1주차 스토리 261122 "일차별 확인 항목과 판정": 얼굴 이상 → 사살(제거), 위조문서 판별(5일차) → 신고, 나머지 → 거부.
         public static (Verdict verdict, ErrorKind reason) Judge(Visitor v, DayConfig day, ResidentDatabase db)
         {
             if (day.Has(ErrorKind.OutsiderAppearance) && FaceAbnormal(v.Face)) return (Verdict.Kill, ErrorKind.OutsiderAppearance);
             if (v.PassMissing) return (Verdict.Deny, ErrorKind.PassMissing);
             var p = v.Pass;
+            // 5일차~ 위조문서 판별: 선별소 도장 · 검역소견서 도장이 위조됨 (도장의 모양이 다르다, 도장이 없다) → 신고 (문서위조는 범죄)
+            if (day.Has(ErrorKind.ForgedStamp) && p.Stamp != GenuineStamp) return (Verdict.Report, ErrorKind.ForgedStamp);
+            if (day.Has(ErrorKind.CertStampForged) && v.Cert != null && v.Cert.Stamp != GenuineStamp) return (Verdict.Report, ErrorKind.CertStampForged);
             if (day.Has(ErrorKind.PassDateWrong) && p.IssueDate.Date != day.Today.Date) return (Verdict.Deny, ErrorKind.PassDateWrong);
             // 1일차 (DB 없음): 임시통행증 대조
             if (day.Has(ErrorKind.PhotoMismatch) && !Normal(v.Face).Equals(p.Photo)) return (Verdict.Deny, ErrorKind.PhotoMismatch);
@@ -45,7 +48,6 @@ namespace ProtocolSeoul
                 if (day.Has(ErrorKind.AddressMismatch) && p.Address != r.Address) return (Verdict.Deny, ErrorKind.AddressMismatch);
                 if (day.Has(ErrorKind.CriminalRecord) && r.CriminalRecord != null) return (Verdict.Deny, ErrorKind.CriminalRecord);
             }
-            if (day.Has(ErrorKind.ForgedStamp) && p.Stamp != GenuineStamp) return (Verdict.Deny, ErrorKind.ForgedStamp);
             if (day.Has(ErrorKind.QuarantineMissing) && v.Cert == null) return (Verdict.Deny, ErrorKind.QuarantineMissing);
             if (day.Has(ErrorKind.QuarantineExpired) && v.Cert != null && CertExpired(v.Cert, day.Today)) return (Verdict.Deny, ErrorKind.QuarantineExpired);
             // 3일차~ 입성 사유서

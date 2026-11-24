@@ -34,21 +34,25 @@ namespace ProtocolSeoul
         // 입성 사유서: 3일차~
         public bool HasPermit => Has(ErrorKind.EntryMissing) || Has(ErrorKind.EntryNameMismatch) || Has(ErrorKind.EntryReasonDenied) || Has(ErrorKind.EntryDestMismatch);
         // 위조 판별: 5일차~
-        public bool HasForgery => Has(ErrorKind.ForgedStamp);
+        public bool HasForgery => Has(ErrorKind.ForgedStamp) || Has(ErrorKind.CertStampForged);
 
         // 임시통행증 글줄. 생년월일은 모든 일차 (C060 가정: 2일차~ 목록에 없는 것을 뺀 근거로 보지 않음). 범죄기록은 2일차~ (스토리 261122)
         public Field[] PassFields => HasDatabase
             ? new[] { Field.Name, Field.ResidentId, Field.BirthDate, Field.Address, Field.CriminalRecord, Field.IssueDate }
             : new[] { Field.Name, Field.ResidentId, Field.BirthDate, Field.Address, Field.IssueDate };
 
-        // 기본 4일 (에셋이 없을 때·테스트용). 규칙이 하루에 하나씩 늘어남 (페이퍼 플리즈 방식, 보고서 "날짜별 규칙 추가")
+        // 기본 5일 (에셋이 없을 때·테스트용). 규칙이 하루에 하나씩 늘어남 (페이퍼 플리즈 방식, 보고서 "날짜별 규칙 추가")
+        // 5일차 안내 글: 스토리 261122 5일차 글머리 그대로 + 마지막 줄은 3·4일차와 같은 가정 줄
+        public const string Day5Briefing = "위조서류를 발견한 정부는 DB에 위조문서 규칙을 추가\n신고 버튼 활성화 (문서위조는 범죄)\n임시통행증 (이름, 얼굴, 주민번호, 주소, 범죄기록)\n입성 사유서 (이름, 사유)\n3일차 입성사유 허용 : 공격적이지 않으면 허용\n위조문서 판별\n검역 소견서 필수 (검사일 3일 이내) · DB에 범죄 이력이 있으면 거부";
+
         public static List<DayConfig> Defaults()
         {
-            // Resources/Days/Day1~3.asset과 같은 규칙 (1주차 스토리 261122 "일차별 확인 항목과 판정")
+            // Resources/Days/Day1~5.asset과 같은 규칙 (1주차 스토리 261122 "일차별 확인 항목과 판정")
             var d1 = new[] { ErrorKind.OutsiderAppearance, ErrorKind.PassMissing, ErrorKind.PassDateWrong, ErrorKind.AgeMismatch, ErrorKind.PhotoMismatch, ErrorKind.SpokenNameMismatch, ErrorKind.NotSeoul };
             // 검역 소견서는 2일차부터 (3차 회의록 261117 "2일차부터 검역 소견서 추가", C060)
             var d2 = new List<ErrorKind> { ErrorKind.NotInDatabase, ErrorKind.IdDigitMismatch, ErrorKind.AddressMismatch, ErrorKind.OutsiderAppearance, ErrorKind.PassMissing, ErrorKind.PassDateWrong, ErrorKind.QuarantineMissing, ErrorKind.QuarantineExpired };
             var d3 = new List<ErrorKind>(d2) { ErrorKind.CriminalRecord, ErrorKind.EntryMissing, ErrorKind.EntryNameMismatch, ErrorKind.EntryReasonDenied, ErrorKind.EntryDestMismatch };
+            var d5 = new List<ErrorKind>(d3) { ErrorKind.ForgedStamp, ErrorKind.CertStampForged };
             var days = new List<DayConfig>
             {
                 Make(1, 6, 0.4f, "얼굴 · 임시통행증 확인 (주민등록 DB 없음)",
@@ -60,6 +64,9 @@ namespace ProtocolSeoul
                 // 4일차: 확인 항목은 3일차와 같음 (스토리 261122 "일차별 확인 항목과 판정" 표 4일차 열). 인원·오류 비율은 3일차와 같게 (가정)
                 Make(4, 8, 0.5f, "3일차와 같음 (입성 사유서 · 범죄 이력 거부)",
                     "주민등록 DB 정상 가동\n임시통행증 (이름, 얼굴, 주민번호, 주소, 범죄기록)\n입성 사유서 (이름, 사유)\n3일차 입성사유 허용 : 공격적이지 않으면 허용\n검역 소견서 필수 (검사일 3일 이내) · DB에 범죄 이력이 있으면 거부", d3.ToArray()),
+                // 5일차: 4일차 + 위조문서 판별 (선별소 도장 · 검역소견서 도장 → 신고), 신고 버튼 활성화 (스토리 261122 5일차 · 위조문서 판별 표). 인원·오류 비율은 4일차와 같게 (가정)
+                Make(5, 8, 0.5f, "+ 위조문서 판별 (선별소 · 검역소견서 도장) → 신고",
+                    Day5Briefing, d5.ToArray()),
             };
             days[2].ScriptedVisitors = new List<string> { "kang", "jin" };
             days[3].ScriptedVisitors = new List<string> { VisitorGenerator.KangForged };

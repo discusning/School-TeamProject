@@ -98,7 +98,11 @@ namespace ProtocolSeoul.Game
         Verdict? _kangChoice; // 강00 이벤트: 4일차 위조 서류 강00 처분 (분기 B·C)
         FieldCell _logCell; // 대화 로그의 방문자 말풍선 (검사 모드 비교 칸, C061)
 
-        void SetVerdictButtons(bool on) { _passBtn.interactable = _denyBtn.interactable = _killBtn.interactable = on; }
+        bool _kangThanked;     // 4일차 강00의 사례가 나옴 (분기 A)
+        bool _suicidePending;  // 4일차 강00 반려 직후 강00의 자살 장면을 띄울 차례 (분기 C)
+        bool _kangSuicide;     // 강00의 자살을 봄 (조직/범죄 엔딩 루트 진행 가능, 분기 C)
+
+        void SetVerdictButtons(bool on) { _passBtn.interactable = _denyBtn.interactable = _killBtn.interactable = _reportBtn.interactable = on; }
         static string Who(Visitor v) => v.PassMissing ? "(통행증 없음)" : v.Pass.Name;
 
         // 서류 연출 (3차 회의 261117): 작은 서류가 위에서 내려오고, 클릭하면 서류 검토 영역 가득 확대
@@ -200,10 +204,11 @@ namespace ProtocolSeoul.Game
         void StartDay()
         {
             CloseOverlay();
-            if (_dayIndex == 0) _jinChoice = null;
+            if (_dayIndex == 0) { _jinChoice = null; _kangSuicide = false; }
             _kangChoice = null;
-            // 4일차 강00은 3일차에 진00을 들여보냈을 때만 옴 (분기 B·C)
-            _visitors = new VisitorGenerator(_db, _seed * 31 + Day.Day) { JinPassed = _jinChoice == "통과" }.GenerateDay(Day);
+            _kangThanked = _suicidePending = false;
+            // 4일차 강00: 3일차에 진00을 들여보냈으면 위조 서류로 옴 (분기 B·C), 거부·반려했으면 사례하러 옴 (분기 A)
+            _visitors = new VisitorGenerator(_db, _seed * 31 + Day.Day) { JinPassed = _jinChoice == "통과", JinDenied = _jinChoice != null && _jinChoice != "통과" }.GenerateDay(Day);
             _ledger = new DayLedger();
             _vi = 0;
             _header.text = Day.DayLabel;
@@ -234,6 +239,22 @@ namespace ProtocolSeoul.Game
             SetVerdictButtons(true);
             _nextBtn.gameObject.SetActive(false);
             Play(_tick);
+            if (V.Story == VisitorGenerator.KangThanks) ShowKangThanks();
+        }
+
+        // 4일차 강00의 사례 (1주차 스토리 261122 분기 A): 고마움을 표한 후 사라짐 (물질적인 감사), 사연을 물어보면 딸 이야기를 고백.
+        // 질문 기능이 없어 사연 질문·고백은 대화 로그에 바로 이어 남김. 판정 없음 → 다음 방문자 버튼만
+        void ShowKangThanks()
+        {
+            _decided = true;
+            _kangThanked = true;
+            _ledger.Bonus += DayLedger.KangThanksBonus;
+            AddBubble(true, "플레이어", VisitorGenerator.KangAskLine);
+            AddBubble(false, "방문자", VisitorGenerator.KangConfessLine);
+            // 첫마디 칸에 사례 말 + 고백 (판정 띠는 띄우지 않음 — 띠가 첫마디 칸을 가림). 사라짐·물질적인 감사는 정산에 적음
+            _speech.text = V.Line + "\n" + VisitorGenerator.KangConfessLine;
+            SetVerdictButtons(false);
+            _nextBtn.gameObject.SetActive(true);
         }
 
         void Decide(Verdict chosen)
@@ -255,6 +276,7 @@ namespace ProtocolSeoul.Game
             {
                 // 4일차 강00 (분기 B·C): 처분을 선택 결과로 저장. 통과면 그날 밤 자폭 배드 엔딩 (정산 뒤)
                 _kangChoice = chosen;
+                _suicidePending = DayLedger.KangSuicide(_jinChoice == "통과", chosen); // 분기 C: 반려 직후 강00의 자살 장면
                 Play(_stamp);
                 ShowBand(true, $"선택 기록 — 강00 {Name(chosen)}", "강00 이벤트 선택이 저장됨");
                 SetVerdictButtons(false);
@@ -292,7 +314,36 @@ namespace ProtocolSeoul.Game
 
         void Next()
         {
-            if (!_decided) return;
+            if (!_decided || _overlay != null) return;
+            if (_suicidePending) { _suicidePending = false; ShowKangSuicide(); return; }
+            Advance();
+        }
+
+        // [분기 C] (4일차) 강00의 자살 — 1주차 스토리 261122 166~168행 원문 그대로. 그림·연출은 받으면 넣음 (지금은 글만)
+        bool _suicideShown;
+        void ShowKangSuicide()
+        {
+            _suicideShown = true;
+            _kangSuicide = true;
+            var o = OpenOverlay();
+            var panel = Ui.Box(o, "Panel", 0.18f, 0.12f, 0.82f, 0.88f, new Color(0.05f, 0.05f, 0.08f));
+            var t = panel.transform;
+            Ui.Label(t, "Title", 0.05f, 0.82f, 0.95f, 0.95f, "(4일차) 강00의 자살", 52, new Color(1f, 0.6f, 0.5f), TextAnchor.MiddleCenter);
+            Ui.Shrink(Ui.Label(t, "Try", 0.07f, 0.6f, 0.93f, 0.8f,
+                "강00도 위조서류를 만들어 진00과 같은 방식으로 요새로 들어오려고 시도하지만 반려함.",
+                28, Ui.Light, TextAnchor.MiddleCenter), 16);
+            Ui.Shrink(Ui.Label(t, "Scene", 0.07f, 0.24f, 0.93f, 0.58f,
+                "아무 복수도 이루지 못한 강00은 망연자실하며 플레이어가 보는 앞에서 일부러 외곽의 '외부인 감지 레이더/자동 방어포탑' 사거리 안으로 걸어가 자살함.  (조직/범죄 엔딩 루트 진행 가능).",
+                28, Ui.Light, TextAnchor.MiddleCenter), 16);
+            Ui.Button(t, "Continue", 0.35f, 0.04f, 0.65f, 0.15f, "계속 ▶", new Color(0.25f, 0.35f, 0.55f), Color.white, 30, () =>
+            {
+                CloseOverlay();
+                Advance();
+            });
+        }
+
+        void Advance()
+        {
             _vi++;
             if (_vi >= _visitors.Count) ShowSettlement();
             else ShowVisitor();
@@ -308,7 +359,7 @@ namespace ProtocolSeoul.Game
             Ui.Label(t, "Title", 0.05f, 0.9f, 0.95f, 0.98f, fired ? $"{Day.Day}일차 정산 — 퇴출" : $"{Day.Day}일차 정산", 46, fired ? new Color(1f, 0.5f, 0.45f) : Ui.Light, TextAnchor.MiddleCenter);
             bool hasJin = _ledger.Entries.Any(e => e.Visitor.Story == "jin");
             bool hasKang = _ledger.Entries.Any(e => e.Visitor.Story == VisitorGenerator.KangForged);
-            float top = hasJin || hasKang ? 0.8f : 0.86f;
+            float top = hasJin || hasKang || _kangThanked ? 0.8f : 0.86f;
             float y = top, step = Mathf.Min(0.07f, (top - 0.36f) / Mathf.Max(1, _ledger.Entries.Count));
             foreach (var e in _ledger.Entries)
             {
@@ -330,13 +381,17 @@ namespace ProtocolSeoul.Game
             }
             if (hasKang && _kangChoice != null)
             {
-                string pick = _kangChoice == Verdict.Pass ? "선택 2) 진00을 들여보내고, 그 후에 강00을 들여보냄" : "선택 3) 진00을 들여보내고, 강00을 반려/무시";
+                string pick = _kangChoice == Verdict.Pass ? "선택 2) 진00을 들여보내고, 그 후에 강00을 들여보냄" : "선택 3) 진00을 들여보내고, 강00을 반려/무시 → 강00의 자살 (조직 엔딩으로 진입 가능)";
                 Ui.Shrink(Ui.Label(t, "Story", 0.06f, 0.82f, 0.94f, 0.88f, "강00 이벤트 — " + pick, 24, Ui.Pick, TextAnchor.MiddleCenter), 16);
             }
+            // 4일차 강00의 사례 (분기 A): 원문 "심사대 앞에서 고마움을 표한 후 사라짐.(물질적인 감사)"
+            if (_kangThanked)
+                Ui.Shrink(Ui.Label(t, "Story", 0.06f, 0.82f, 0.94f, 0.88f, "강00 이벤트 — 선택 1) 강00의 사례: 심사대 앞에서 고마움을 표한 후 사라짐.(물질적인 감사)", 24, Ui.Pick, TextAnchor.MiddleCenter), 16);
             bool bomb = hasKang && _kangChoice.HasValue && DayLedger.BombEnding(_jinChoice == "통과", _kangChoice.Value);
+            string bonus = _ledger.Bonus > 0 ? $"  강00의 사례 +{_ledger.Bonus}" : "";
             Ui.Label(t, "Sum", 0.06f, 0.2f, 0.94f, 0.34f,
                 $"정답 {_ledger.CorrectCount} · 실수 {_ledger.Mistakes} → {_ledger.Stage}\n" +
-                $"배급 +{_ledger.Earned}  벌점 −{_ledger.Penalty}  =  {_ledger.Total}   (누적 {_runTotal})", 28, fired || _ledger.RationStopped ? new Color(1f, 0.55f, 0.5f) : Ui.Pick, TextAnchor.MiddleCenter);
+                $"배급 +{_ledger.Earned}  벌점 −{_ledger.Penalty}{bonus}  =  {_ledger.Total}   (누적 {_runTotal})", 28, fired || _ledger.RationStopped ? new Color(1f, 0.55f, 0.5f) : Ui.Pick, TextAnchor.MiddleCenter);
             Ui.Label(t, "Note", 0.06f, 0.13f, 0.94f, 0.2f, "실수 2번까진 경고, 3번부터 식량 감소, 4번부터 식량 미지급, 5번부터 퇴출(배드엔딩)\n※ 배급·벌점 숫자는 임시입니다 (기획 확정 전)", 20, new Color(0.7f, 0.7f, 0.7f), TextAnchor.MiddleCenter);
             bool last = fired || _dayIndex >= _days.Count - 1;
             // 자폭 배드 엔딩: 4일차 일이 끝난 밤 (정산 뒤). 퇴출이 먼저면 퇴출로 끝남 (가정)
@@ -578,8 +633,8 @@ namespace ProtocolSeoul.Game
             // 순서 (위→아래): 통과·거부·제거·신고 (메인 기획 소감 261123)
             // 제거: 1일차부터 (얼굴에 이상한 부분 → 제거, 1주차 스토리 261122). 신고: 5일차부터 보임 (그 전엔 숨김, StartDay)
             _killBtn = Ui.Button(verdict, "Kill", 0.06f, 0.54f, 0.94f, 0.65f, "제거", new Color(0.35f, 0.05f, 0.05f), Color.white, 36, () => Decide(Verdict.Kill));
-            _reportBtn = Ui.Button(verdict, "Report", 0.06f, 0.42f, 0.94f, 0.53f, "신고", Ui.Disabled, Soon, 24, null);
-            _reportBtn.interactable = false; // 신고 판정은 5일차 규칙이 오면 연결
+            // 신고: 5일차 신고 버튼 활성화 (문서위조는 범죄, 1주차 스토리 261122). 신고 버튼 그림은 아직 없음 → 다른 판정 버튼과 같은 글자 버튼 (색은 가정)
+            _reportBtn = Ui.Button(verdict, "Report", 0.06f, 0.42f, 0.94f, 0.53f, "신고", new Color(0.62f, 0.4f, 0.08f), Color.white, 36, () => Decide(Verdict.Report));
             _reportBtn.gameObject.SetActive(false);
             // 검사 모드: 끔/켬 × 기본·마우스 올림·클릭 그림. 글자는 그림 가운데 회색 글줄 칸에
             _inspectArtOff = Ui.ArtSet("inspect_off_normal", "inspect_off_hover", "inspect_off_pressed");
@@ -665,7 +720,9 @@ namespace ProtocolSeoul.Game
             {
                 for (int r = 0; r < 3; r++) Ui.Box(t, "Line" + r, 0.1f, 0.68f - r * 0.12f, 0.9f, 0.72f - r * 0.12f, line);
             }
-            if (kind != Doc.Permit) Ui.Circle(t, "Stamp", 0.56f, 0.05f, 0.9f, 0.2f, new Color(0.7f, 0.12f, 0.1f, 0.75f));
+            // 도장 그림: 도장이 없는 위조 서류(5일차~)면 안 그림
+            string stampText = kind == Doc.Pass ? V.Pass.Stamp : kind == Doc.Cert ? V.Cert?.Stamp : null;
+            if (kind != Doc.Permit && !string.IsNullOrEmpty(stampText)) Ui.Circle(t, "Stamp", 0.56f, 0.05f, 0.9f, 0.2f, new Color(0.7f, 0.12f, 0.1f, 0.75f));
             Ui.Label(t, "Hint", 0.04f, 0.02f, 0.55f, 0.2f, "클릭", 16, Ui.Ink * 2.2f, TextAnchor.MiddleLeft);
             return b.image.rectTransform;
         }
@@ -818,6 +875,7 @@ namespace ProtocolSeoul.Game
                 bool six = rows.Length > 5;
                 var stamp = MakeCell(card, six ? 0.73f : 0.72f, six ? 0.035f : 0.08f, six ? 0.92f : 0.93f, six ? 0.245f : 0.34f, Source.TravelPass, Field.Stamp, p.Stamp, new Color(1f, 1f, 1f, 0f), new Color(0.7f, 0.12f, 0.1f), out var stv);
                 var ring = Ui.Circle(stamp.Bg.transform, "Ring", 0.12f, 0.02f, 0.88f, 0.98f, new Color(0.7f, 0.12f, 0.1f, 0.16f));
+                ring.enabled = !string.IsNullOrEmpty(p.Stamp); // 도장 없음(위조)이면 테두리도 없음
                 ring.raycastTarget = false;
                 ring.transform.SetAsFirstSibling();
                 Destroy(stamp.Bg.transform.Find("Name").gameObject);
@@ -952,7 +1010,7 @@ namespace ProtocolSeoul.Game
             Ui.Label(scr, "Foot", 0.04f, 0.05f, 0.96f, 0.14f, "※ 멸망 전 서버 일부만 복구됨 — 사진은 등록 당시 모습", 16, Ui.TermText * 0.6f);
         }
 
-        // 규칙 및 매뉴얼: 오늘의 규칙 · 필수 제출 서류 목록은 지금 규칙에서 채움. 위조 판별 예시·검역 판독 기준은 준비 중.
+        // 규칙 및 매뉴얼: 오늘의 규칙 · 필수 제출 서류 목록은 지금 규칙에서 채움. 위조 판별 예시(5일차~)·검역 판독 기준(검역 소견서 나오는 날)은 원문 예시로 채움.
         void BuildManual(Transform t)
         {
             var docs = "임시 통행증" + (CertDay ? " · 검역 소견서" : "") + (PermitDay ? " · 입성 사유서" : "");
@@ -969,13 +1027,15 @@ namespace ProtocolSeoul.Game
             if (DbDay) sb.AppendLine("■ DB와 대조했을때 문제가 없는가? (주민번호, 이름, 주소)");
             if (Day.Has(ErrorKind.EntryReasonDenied)) sb.AppendLine("■ 입성사유 허용 : 공격적이지 않으면 허용 (예: 가족 합류, 의료, 배정 근무)");
             if (Day.Has(ErrorKind.EntryDestMismatch)) sb.AppendLine("■ 사유서의 목적지가 방문자가 말한 목적지와 일치하는가? (대화 로그로 확인)");
-            if (Day.Has(ErrorKind.ForgedStamp)) sb.AppendLine($"■ 정상 도장: 「{Rules.GenuineStamp}」");
+            if (Day.HasForgery) sb.AppendLine("■ DB에 선별소 도장, 검역소견서 도장이 위조되지 않았는가? (도장의 모양이 다르다, 도장이 없다) → 신고");
             if (Day.Has(ErrorKind.QuarantineExpired)) sb.AppendLine($"■ 검역 소견서 검사일: 오늘 기준 {Rules.QuarantineValidDays}일 이내");
             if (Day.Has(ErrorKind.CriminalRecord)) sb.AppendLine("■ DB에 범죄 이력이 있으면 거부");
             Ui.Shrink(Ui.Label(t, "Rules", 0.03f, 0.25f, 0.97f, 0.98f, sb.ToString().TrimEnd(), 22, Ui.TermText, TextAnchor.UpperLeft), 12);
             // 그날 나오는 자료만 (C060): 위조 판별은 5일차~, 검역 소견서는 2일차~
-            if (Day.HasForgery) Ui.Label(t, "Forge", 0.03f, 0.13f, 0.97f, 0.24f, "■ 위조 서류 판별 예시 (준비 중)", 20, Ui.TermText * 0.6f, TextAnchor.MiddleLeft);
-            if (CertDay) Ui.Label(t, "Quar", 0.03f, 0.02f, 0.97f, 0.13f, "■ 검역 소견서 판독 기준 (준비 중)", 20, Ui.TermText * 0.6f, TextAnchor.MiddleLeft);
+            // 위조 서류 판별 예시: 원문 "(도장의 모양이 다르다, 도장이 없다)" + 게임의 정상·위조 도장 글자 (예시 글자는 가정)
+            if (Day.HasForgery) Ui.Shrink(Ui.Label(t, "Forge", 0.03f, 0.13f, 0.97f, 0.24f, $"■ 위조 서류 판별 예시: 정상 「{Rules.GenuineStamp}」 / 위조 「{Rules.ForgedStamps[0]}」「{Rules.ForgedStamps[3]}」 · 도장 없음", 20, Ui.TermText, TextAnchor.MiddleLeft), 12);
+            // 검역 소견서 판독 기준: 기획 추가 261115 단말기 영역 원문 예시 그대로
+            if (CertDay) Ui.Shrink(Ui.Label(t, "Quar", 0.03f, 0.02f, 0.97f, 0.13f, "■ 검역 소견서 판독 기준 (예: 눈 충혈은 허용, 회색빛 안색은 거부 사유 등)", 20, Ui.TermText, TextAnchor.MiddleLeft), 12);
         }
 
         void TermRow(Transform t, float x0, float yTop, Field f, string value) =>
@@ -1175,7 +1235,7 @@ namespace ProtocolSeoul.Game
             int DocFor(ErrorKind e)
             {
                 Doc want = e is ErrorKind.EntryMissing or ErrorKind.EntryNameMismatch or ErrorKind.EntryReasonDenied or ErrorKind.EntryDestMismatch ? Doc.Permit
-                    : e is ErrorKind.QuarantineMissing or ErrorKind.QuarantineExpired ? Doc.Cert : Doc.Pass;
+                    : e is ErrorKind.QuarantineMissing or ErrorKind.QuarantineExpired or ErrorKind.CertStampForged ? Doc.Cert : Doc.Pass;
                 return _docKinds.IndexOf(want); // 안 낸 서류면 -1 → 펼치지 않음
             }
             var seen = new HashSet<ErrorKind>();
@@ -1205,6 +1265,13 @@ namespace ProtocolSeoul.Game
                     log.AppendLine($"  C057 {day} 제거 버튼 누를 수 있음 {_killBtn.interactable}, 글자 \"{_killBtn.GetComponentInChildren<Text>().text}\"");
                     _killBtn.onClick.Invoke();
                     log.AppendLine($"  C057 {day} 제거 클릭 → 정답 {V.Correct}, 정답 수 {before}→{_ledger.CorrectCount}");
+                }
+                else if (V.Correct == Verdict.Report)
+                {
+                    // C049: 신고 버튼을 실제로 눌러 판정 (위조 도장 → 신고 = 정답)
+                    int before = _ledger.CorrectCount;
+                    _reportBtn.onClick.Invoke();
+                    log.AppendLine($"  C049 {day} 신고 클릭 ({V.Reason}) → 정답 수 {before}→{_ledger.CorrectCount}");
                 }
                 else Decide(V.Correct);
                 yield return Shot($"c049_{day}_{V.Reason}_result");
@@ -1434,18 +1501,29 @@ namespace ProtocolSeoul.Game
             yield return Shot("day3_settlement"); // 강00 이벤트 선택 줄
             log.AppendLine($"  강00 이벤트 선택 {_jinChoice}");
 
-            // C061 분기 A: 3일차 진00 거부 → 4일차 강00 오지 않음
+            // C061 분기 A: 3일차 진00 거부 → 4일차 강00 위조 서류로 오지 않음. C049: 대신 강00의 사례 (고마움 · 고백 · 물질적인 감사)
             CloseOverlay(); _dayIndex = 3; ShowDayIntro();
             yield return Shot("c061_day4_intro");
             StartDay();
-            log.AppendLine($"  C061 분기 A (진00 {_jinChoice}) 4일차 방문자 {_visitors.Count}명, 강00 있음 {_visitors.Any(x => x.Story == VisitorGenerator.KangForged)}");
+            log.AppendLine($"  C061 분기 A (진00 {_jinChoice}) 4일차 방문자 {_visitors.Count}명, 강00 있음 {_visitors.Any(x => x.Story == VisitorGenerator.KangForged)}, 강00의 사례 있음 {_visitors.Any(x => x.Story == VisitorGenerator.KangThanks)}");
             while (_overlay == null)
             {
                 log.AppendLine($"D4A {Who(V)} 말 \"{V.Line}\" 심은 오류 {V.Planted} → 정답 {V.Correct} ({V.Reason})");
-                Decide(V.Correct); Next(); yield return null;
+                if (V.Story == VisitorGenerator.KangThanks)
+                {
+                    yield return new WaitForSeconds(DropTime + DropStagger * 2);
+                    yield return Shot("c049_d4A_kang_thanks"); // 서류 없음 · 판정 버튼 꺼짐 · 다음 방문자 버튼
+                    log.AppendLine($"  C049 분기 A 강00의 사례: 판정 버튼 누를 수 있음 {_passBtn.interactable}, 다음 버튼 {_nextBtn.gameObject.activeSelf}, 작은 서류 {_docKinds.Count}장, 사례 {_ledger.Bonus}");
+                    SetLog(true);
+                    yield return Shot("c049_d4A_kang_thanks_log"); // 사례 말 · 사연 질문 · 딸 고백
+                    log.AppendLine($"  C049 분기 A 로그 말풍선 {_logContent.childCount}개");
+                    SetLog(false);
+                }
+                else Decide(V.Correct);
+                Next(); yield return null;
             }
             yield return Shot("c061_day4_branchA_settlement");
-            log.AppendLine($"  C061 분기 A 정산 버튼 \"{OverlayButtons()}\"");
+            log.AppendLine($"  C061 분기 A 정산 버튼 \"{OverlayButtons()}\" 화면 \"{OverlayTexts()}\"");
 
             // C061 분기 B · C: 3일차 진00 통과 → 4일차 강00 통과(B, 자폭 배드 엔딩) / 거부(C)
             foreach (var (branch, kangPick) in new[] { ("B", Verdict.Pass), ("C", Verdict.Deny) })
@@ -1470,6 +1548,18 @@ namespace ProtocolSeoul.Game
                         Decide(kangPick);
                         yield return Shot($"c061_d4_kang_{branch}_choice");
                         log.AppendLine($"  C061 분기 {branch} 4일차 강00 {Who(V)} 정답(규칙상) {V.Correct} ({V.Reason}) → 처분 {kangPick}, 실수 수 {_ledger.Mistakes}");
+                        if (branch == "C")
+                        {
+                            // C049 분기 C: 반려 직후 "다음 방문자" → 강00의 자살 장면 → 계속
+                            Next();
+                            yield return null;
+                            yield return Shot("c049_d4C_kang_suicide");
+                            log.AppendLine($"  C049 분기 C 강00의 자살 장면 {_suicideShown}, 화면 \"{OverlayTexts()}\"");
+                            _overlay.GetComponentsInChildren<Button>().First(b => b.name == "Continue").onClick.Invoke();
+                            yield return null;
+                            log.AppendLine($"  C049 분기 C 계속 → 방문자 {_vi + 1}/{_visitors.Count}, 창 {(_overlay == null ? "닫힘" : "열림 (정산)")}");
+                            continue;
+                        }
                     }
                     else Decide(V.Correct);
                     Next(); yield return null;
@@ -1481,6 +1571,41 @@ namespace ProtocolSeoul.Game
                 yield return null;
                 yield return Shot($"c061_branch{branch}_after_settlement");
                 log.AppendLine($"  C061 분기 {branch} 정산 버튼 \"{btn}\" → 누른 뒤 자폭 배드 엔딩 {_bombShown}, 화면 \"{OverlayTexts()}\"");
+            }
+
+            // C049 5일차: 위조문서 판별 (선별소 · 검역소견서 도장 → 신고), 신고 버튼 활성화, DB 대조
+            CloseOverlay(); _dayIndex = 4; ShowDayIntro();
+            yield return Shot("c049_day5_intro");
+            StartDay();
+            yield return new WaitForSeconds(DropTime + DropStagger * 2);
+            yield return Shot("c049_day5_docs"); // 신고 버튼 보임
+            VerdictLog("d5");
+            log.AppendLine($"  C049 5일차 신고 버튼 보임 {_reportBtn.gameObject.activeInHierarchy}, 누를 수 있음 {_reportBtn.interactable}, DB탭 {_termTabs[0].gameObject.activeSelf}");
+            seen.Clear();
+            while (_overlay == null)
+            {
+                log.AppendLine($"D5 {Who(V)} 통행증 도장 \"{V.Pass.Stamp}\" 소견서 도장 \"{V.Cert?.Stamp}\" 심은 오류 {V.Planted} → 정답 {V.Correct} ({V.Reason})");
+                yield return C060("d5");
+                if (V.Reason != ErrorKind.None && seen.Add(V.Reason)) yield return ReasonShots("d5");
+                else Decide(V.Correct);
+                Next(); yield return null;
+            }
+            yield return Shot("c049_day5_settlement");
+            log.AppendLine($"  C049 5일차 정산 버튼 \"{OverlayButtons()}\"");
+            // 5일차 위조 장면: 모양이 다른 도장 · 도장 없음 × 통행증 · 검역 소견서 (첫 방문자를 바꿔 촬영)
+            foreach (var (k, empty, tag) in new[] { (ErrorKind.ForgedStamp, false, "pass_shape"), (ErrorKind.ForgedStamp, true, "pass_none"), (ErrorKind.CertStampForged, false, "cert_shape"), (ErrorKind.CertStampForged, true, "cert_none") })
+            {
+                CloseOverlay(); _dayIndex = 4; StartDay();
+                var fv = new VisitorGenerator(_db, 1049 + (int)k).Generate(Day, k);
+                if (k == ErrorKind.ForgedStamp) fv.Pass.Stamp = empty ? "" : Rules.ForgedStamps[1];
+                else fv.Cert.Stamp = empty ? "" : Rules.ForgedStamps[2];
+                (fv.Correct, fv.Reason) = Rules.Judge(fv, Day, _db);
+                _visitors[0] = fv;
+                ShowVisitor();
+                yield return new WaitForSeconds(DropTime + DropStagger * 2);
+                yield return Shot($"c049_d5_{tag}_tray");
+                log.AppendLine($"  C049 5일차 {tag}: 통행증 도장 \"{V.Pass.Stamp}\" 소견서 도장 \"{V.Cert?.Stamp}\" → 정답 {V.Correct} ({V.Reason})");
+                yield return ReasonShots($"d5_{tag}");
             }
 
             // C061: 검사 모드에서 대화 로그 말풍선 ↔ 서류 칸 비교 (일치 · 불일치). 방문자를 그 오류로 바꿔 촬영
@@ -1515,7 +1640,7 @@ namespace ProtocolSeoul.Game
             }
 
             // seed에서 안 나온 오류 장면: 첫 방문자를 그 오류로 바꿔 촬영
-            foreach (var (di, k) in new[] { (0, ErrorKind.NotSeoul), (0, ErrorKind.PassMissing), (1, ErrorKind.PassDateWrong), (2, ErrorKind.EntryMissing), (2, ErrorKind.EntryReasonDenied) })
+            foreach (var (di, k) in new[] { (0, ErrorKind.NotSeoul), (0, ErrorKind.PassMissing), (1, ErrorKind.PassDateWrong), (2, ErrorKind.EntryMissing), (2, ErrorKind.EntryReasonDenied), (3, ErrorKind.IdDigitMismatch), (3, ErrorKind.AddressMismatch), (4, ErrorKind.NotInDatabase), (4, ErrorKind.IdDigitMismatch), (4, ErrorKind.AddressMismatch) })
             {
                 CloseOverlay(); _dayIndex = di; StartDay();
                 _visitors[0] = new VisitorGenerator(_db, 977 + (int)k).Generate(Day, k);

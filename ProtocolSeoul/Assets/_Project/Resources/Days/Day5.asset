@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d90f7459715931a4bb54a09f0e9cd5a3, type: 3}
+  m_Name: Day5
+  m_EditorClassIdentifier: ProtocolSeoul.Core::ProtocolSeoul.DayConfig
+  Day: 5
+  Date: 2050-03-05
+  VisitorCount: 8
+  ErrorRate: 0.5
+  Rules: 010000000200000004000000060000000a0000000b000000080000000900000007000000100000001100000012000000130000000500000014000000
+  Briefing: "위조서류를 발견한 정부는 DB에 위조문서 규칙을 추가\n신고 버튼 활성화 (문서위조는 범죄)\n임시통행증 (이름, 얼굴, 주민번호, 주소, 범죄기록)\n입성 사유서 (이름, 사유)\n3일차 입성사유 허용 : 공격적이지 않으면 허용\n위조문서 판별\n검역 소견서 필수 (검사일 3일 이내) · DB에 범죄 이력이 있으면 거부"
+  RuleShort: "+ 위조문서 판별 (선별소 · 검역소견서 도장) → 신고"
+  ScriptedVisitors: []

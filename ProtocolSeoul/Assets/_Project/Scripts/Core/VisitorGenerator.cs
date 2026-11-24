@@ -42,8 +42,10 @@ namespace ProtocolSeoul
             // 대본 인물 (에셋 ScriptedVisitors): 강00은 앞쪽, 진00은 그 뒤 끝 무렵에 옴 (순서 자리는 가정)
             if (day.ScriptedVisitors.Contains("kang")) list.Insert(Math.Min(1, list.Count), Kang(day));
             if (day.ScriptedVisitors.Contains("jin")) list.Insert(Math.Max(0, list.Count - 1), Jin(day));
-            // 4일차 강00 (분기 B·C): 3일차에 진00을 들여보냈을 때만 위조 서류로 옴. 진00을 거부했으면(분기 A) 오지 않음 (순서 자리는 가정)
+            // 4일차 강00 (분기 B·C): 3일차에 진00을 들여보냈을 때만 위조 서류로 옴 (순서 자리는 가정)
             if (day.ScriptedVisitors.Contains(KangForged) && JinPassed) list.Insert(list.Count / 2, ForgedKang(day));
+            // 4일차 강00의 사례 (분기 A): 3일차에 진00을 거부·반려했을 때 심사대 앞에 와서 고마움을 표한 후 사라짐 (순서 자리는 가정)
+            else if (day.ScriptedVisitors.Contains(KangForged) && JinDenied) list.Insert(list.Count / 2, ThanksKang(day));
             return list;
         }
 
@@ -51,6 +53,19 @@ namespace ProtocolSeoul
         public const string KangForged = "kang_forged";
         // 3일차 진00을 통과시켰는지 (게임이 넘겨줌). 4일차 강00 등장 조건
         public bool JinPassed;
+        // 3일차 진00을 거부·반려(통과 아님)했는지. 4일차 강00의 사례 등장 조건 (분기 A)
+        public bool JinDenied;
+        public const string KangThanks = "kang_thanks";
+
+        // 위조 도장 글자: 모양이 다른 도장 3/4, 도장 없음("") 1/4 (비율은 가정)
+        string ForgedStampText() => _rng.Next(4) == 0 ? "" : Rules.ForgedStamps[_rng.Next(Rules.ForgedStamps.Length)];
+
+        // 강00의 사례 (4일차 분기 A) 대사. 원문은 장면 설명뿐이라 대사 문장은 가정
+        //   원문: "진00이 거부당했다는 소식을 들은 강00은 심사대 앞에서 고마움을 표한 후 사라짐.(물질적인 감사)"
+        //         "사연을 물어보면 자신의 딸이 진00의 조직에게 장난처럼 살해당했다고 고백함."
+        public const string KangThanksLine = "진00을 돌려보냈다고 들었소. 고맙소. 얼마 안 되지만 이건 내 성의요.";
+        public const string KangAskLine = "무슨 사연이 있습니까?";
+        public const string KangConfessLine = "내 딸이… 진00의 조직에게 장난처럼 살해당했소.";
 
         bool Speaks(DayConfig day) => day.Has(ErrorKind.SpokenNameMismatch) || day.Has(ErrorKind.AgeMismatch);
         static bool PermitDay(DayConfig day) => day.HasPermit;
@@ -147,8 +162,11 @@ namespace ProtocolSeoul
                     do addr = ResidentDatabase.MakeAddress(_rng); while (addr == p.Address);
                     p.Address = addr;
                     break;
-                case ErrorKind.ForgedStamp:
-                    p.Stamp = Rules.ForgedStamps[_rng.Next(Rules.ForgedStamps.Length)];
+                case ErrorKind.ForgedStamp: // 도장의 모양이 다르다 · 도장이 없다 (스토리 261122 위조문서 판별)
+                    p.Stamp = ForgedStampText();
+                    break;
+                case ErrorKind.CertStampForged:
+                    if (v.Cert != null) v.Cert.Stamp = ForgedStampText();
                     break;
                 case ErrorKind.OutsiderAppearance: // 서류·사진은 진짜, 부스 얼굴만 미묘하게 다름
                     var f = v.Face;
@@ -233,6 +251,17 @@ namespace ProtocolSeoul
             if (PermitDay(day)) { v.SaidDest = dest; v.Permit = new EntryPermit { Name = r.Name, Reason = "가족 합류", Destination = dest }; }
             (v.Correct, v.Reason) = Rules.Judge(v, day, _db);
             return v;
+        }
+
+        // 강00 (4일차, 분기 A): 서류 없이 심사대 앞에서 고마움을 표한 후 사라짐. 판정하지 않음 (장부에 안 넣음)
+        Visitor ThanksKang(DayConfig day)
+        {
+            var r = _db.FindByName(ResidentDatabase.KangName);
+            return new Visitor
+            {
+                Story = KangThanks, Line = KangThanksLine, Face = r.Face, PassMissing = true, Planted = ErrorKind.None, Correct = Verdict.Pass,
+                Pass = new TravelPass { Name = r.Name, ResidentId = r.ResidentId, BirthDate = r.BirthDate, Address = "", Photo = r.Face, IssueDate = day.Today, Stamp = "" },
+            };
         }
 
         // 진00 (20대 후반, 남): 위조 서류지만 겉으로는 완벽 (5일차 전에는 판별할 규칙 없음). 첫마디는 가정
